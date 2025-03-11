@@ -1,5 +1,6 @@
 import axios from 'axios'
 import dotenv from 'dotenv'
+import Team from '../models/team.module.js'
 
 dotenv.config()
 
@@ -19,4 +20,24 @@ export const formatDate = (date) => {
         return `${year}-${month}-${day}`;
     }
     return 'Invalid Date'
+}
+
+export const formatGame = async (game) => {
+    console.log(game)
+    try{
+        const formatted = {
+            balldontlie_id: game.id,
+            date: new Date(game.date),
+            season: game.season,
+            away_team: await Team.findOne({ balldontlie_id: game.visitor_team.id }),
+            home_team: await Team.findOne({ balldontlie_id: game.home_team.id }),
+            away_team_score: game.visitor_team_score,
+            home_team_score: game.home_team_score,
+        }
+        return { success: true, formatted }
+    }
+    catch(err){
+        console.log(err)
+        return { success: false, message: err.message }
+    }
 }

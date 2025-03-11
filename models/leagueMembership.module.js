@@ -26,9 +26,6 @@ const leagueMembershipSchema = mongoose.Schema({
 
 leagueMembershipSchema.index({ player: 1, league: 1}, { unique: true})
 
-leagueMembershipSchema.virtual('totalScore').get(function(){
-    return this.getTotalScore()
-})
 leagueMembershipSchema.methods.getTotalScore = async function(){
     const predictions = await Prediction.find({ _id: { $in: this.predictions }})
     return predictions.reduce((accumulator, current) => {
