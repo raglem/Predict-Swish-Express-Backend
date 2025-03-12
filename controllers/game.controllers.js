@@ -13,7 +13,7 @@ export const loadGames = async (req, res) => {
             if(!game){
                 const formattedGame = await formatGame(retrievedGame)
                 if(formattedGame.success === true){
-                    const newGame = Game(await formatGame(formattedGame.formatted))
+                    const newGame = Game(formattedGame.formatted)
                     await newGame.save()
                     numberAdded++
                 }

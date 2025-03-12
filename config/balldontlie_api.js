@@ -25,12 +25,14 @@ export const formatDate = (date) => {
 export const formatGame = async (game) => {
     console.log(game)
     try{
+        const away_team = await Team.findOne({ balldontlie_id: game.visitor_team.id })
+        const home_team = await Team.findOne({ balldontlie_id: game.home_team.id })
         const formatted = {
             balldontlie_id: game.id,
             date: new Date(game.date),
             season: game.season,
-            away_team: await Team.findOne({ balldontlie_id: game.visitor_team.id }),
-            home_team: await Team.findOne({ balldontlie_id: game.home_team.id }),
+            away_team: away_team._id,
+            home_team: home_team._id,
             away_team_score: game.visitor_team_score,
             home_team_score: game.home_team_score,
         }

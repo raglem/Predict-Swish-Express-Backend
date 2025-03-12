@@ -4,6 +4,6 @@ import User from '../models/user.module.js'
 
 const gameRouter = express.Router()
 
-gameRouter.get("/all", loadGames)
+gameRouter.get("/load", loadGames)
 
 export default gameRouter

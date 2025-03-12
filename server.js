@@ -7,6 +7,7 @@ import userRouter from './routes/user.route.js'
 import playerRouter from './routes/player.route.js'
 import gameRouter from './routes/game.route.js'
 import leagueRouter from './routes/league.route.js'
+import teamRouter from './routes/team.route.js'
 
 import Player from './models/player.module.js'
 
@@ -23,6 +24,7 @@ app.use(verifyToken)
 app.use('/players', playerRouter)
 app.use('/games', gameRouter)
 app.use('/leagues', leagueRouter)
+app.use('/teams', teamRouter)
 
 
 app.listen(PORT, (err) => {
