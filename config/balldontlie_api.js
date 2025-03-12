@@ -27,9 +27,11 @@ export const formatGame = async (game) => {
     try{
         const away_team = await Team.findOne({ balldontlie_id: game.visitor_team.id })
         const home_team = await Team.findOne({ balldontlie_id: game.home_team.id })
+        const status = getStatus(game)
         const formatted = {
             balldontlie_id: game.id,
             date: new Date(game.date),
+            status: status,
             season: game.season,
             away_team: away_team._id,
             home_team: home_team._id,
@@ -41,5 +43,15 @@ export const formatGame = async (game) => {
     catch(err){
         console.log(err)
         return { success: false, message: err.message }
+    }
+
+    function getStatus(game){
+        if(game.status === 'Final'){
+            return 'Final'
+        }
+        if(game.away_team_score === 0 && game.home_team_score){
+            return 'Upcoming'
+        }
+        return 'Pending'
     }
 }

@@ -22,23 +22,38 @@ export const loadGames = async (req, res) => {
                 }
             }
         }
-
-        // const rawGame = await api.get(`/games/15908672`)
-        // const retrievedGame = rawGame.data.data
-        // const game = await Game.findOne({ balldontlie_id: retrievedGame.id })
-        // if(!game){
-        //     const formattedGame = await formatGame(retrievedGame)
-        //     if(formattedGame.success === true){
-        //         const newGame = Game(formattedGame.formatted)
-        //         console.log(newGame)
-        //         await newGame.save()
-        //         numberAdded++
-        //     }
-        //     else{
-        //         console.log(formattedGame.message)
-        //     }
-        // }
         return res.status(200).json({ success: true, message: `${numberAdded} games successfully added`})
+    }
+    catch(err) {
+        console.log(err)
+        return res.status(500).json({ success: false, message: 'Server Error'})
+    }
+}
+export const updateGames = async (req, res) => {
+    const today = new Date()
+    /*
+    retrieve Games from last week to today
+    we can retrieve games in groups with the retrieveGames method
+    afterward, we will individually lookup and update games that have status pending and occurred more than a week ago
+    */
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7)
+    const end = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    try{
+        let numberUpdated = 0;
+        const retrievedGames = await retrieveGames(start, end)
+        for(const retrievedGame of retrievedGames){
+            if(retrievedGame.status === 'Final'){
+                const game = await Game.findOne({ balldontlie_id: retrievedGame.id })
+                if(game && (game.status == 'Pending' || game.status == 'Upcoming')){
+                    game.status = 'Final'
+                    game.away_team_score = retrievedGame.visitor_team_score
+                    game.home_team_score = retrievedGame.home_team_score
+                    await game.save()
+                    numberUpdated++
+                }
+            }
+        }
+        return res.status(200).json({ success: true, message: `${numberUpdated} games updated`})
     }
     catch(err) {
         console.log(err)

@@ -10,6 +10,11 @@ const gameSchema = mongoose.Schema({
         type: Date,
         required: true
     },
+    status: {
+        type: String,
+        enum: ['Upcoming', 'Pending', 'Final'],
+        required: true
+    },
     season: {
         type: Number,
         required: true
