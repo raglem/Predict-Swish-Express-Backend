@@ -9,7 +9,8 @@ import gameRouter from './routes/game.route.js'
 import leagueRouter from './routes/league.route.js'
 import teamRouter from './routes/team.route.js'
 
-import Player from './models/player.module.js'
+import { api } from './config/balldontlie_api.js'
+import Game from './models/game.module.js'
 
 dotenv.config()
 
@@ -52,4 +53,11 @@ app.post("/", (req, res) => {
 
 // run()
 // async function run() {
+//     try{
+//         const response = await api.get(`/games?dates[]=2025-03-12`)
+//         console.log(response.data.data)
+//     }
+//     catch(err){
+//         console.log(err)
+//     }
 // }

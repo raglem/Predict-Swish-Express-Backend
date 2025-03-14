@@ -49,9 +49,11 @@ export const formatGame = async (game) => {
         if(game.status === 'Final'){
             return 'Final'
         }
-        if(game.away_team_score === 0 && game.home_team_score){
-            return 'Upcoming'
+        if(game.status === '1st Qtr' || game.status === '2nd Qtr' 
+            || game.status === '3rd Qtr' || game.status === '4th Qtr')
+        {
+            return 'Pending'
         }
-        return 'Pending'
+        return 'Upcoming'
     }
 }

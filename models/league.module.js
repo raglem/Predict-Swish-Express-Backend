@@ -42,7 +42,7 @@ const leagueSchema = mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         required: function(){
             this.mode === 'team'
-        }
+        },
     },
     games: {
         type: [mongoose.Schema.Types.ObjectId],

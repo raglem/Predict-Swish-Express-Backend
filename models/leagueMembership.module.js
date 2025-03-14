@@ -1,5 +1,5 @@
 import mongoose from 'mongoose'
-import Prediction from './prediction.module'
+import Prediction from './prediction.module.js'
 
 const leagueMembershipSchema = mongoose.Schema({
     player:{

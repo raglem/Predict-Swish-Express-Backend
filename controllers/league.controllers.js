@@ -2,11 +2,16 @@ import Player from '../models/player.module.js'
 import League from '../models/league.module.js'
 
 import mongoose from 'mongoose'
+import { api } from '../config/balldontlie_api.js'
 import User from '../models/user.module.js'
+import Game from '../models/game.module.js'
+import Team from '../models/team.module.js'
+import LeagueMembership from '../models/leagueMembership.module.js'
 
 export const createLeague = async(req, res) => {
     const rawData = req.body
     let userPlayer;
+    let team
     try{
         userPlayer = await Player.findOne({ user: req.userId })
         if(!userPlayer){    
@@ -21,10 +26,16 @@ export const createLeague = async(req, res) => {
     {
         return res.status(400).json({ success: false, message: "Please provide all league fields"})
     }
-
     //add check to make sure team is provided if team mode is specified
-    if(rawData.mode === "team" && !rawData.team){
-        return res.status(400).json({ success: false, message: "Please provide a team field"})
+    if(rawData.mode === "team"){
+        if(!rawData.team){
+            return res.status(400).json({ success: false, message: "Please provide a team field" })
+        }
+        team = await Team.findOne({ name: rawData.team })
+        if(!team){
+            return res.status(400).json({ success: false, message: "Not a valid team team field "})
+        }
+
     }
 
     try{
@@ -40,6 +51,7 @@ export const createLeague = async(req, res) => {
     const leagueData = {
         owner: userPlayer._id,
         ...rawData,
+        team: team._id,
         member_players: [],
         requesting_players: [],
         invited_players: rawData.invited_players || []
@@ -48,6 +60,65 @@ export const createLeague = async(req, res) => {
     const newLeague = new League(leagueData)
     await newLeague.save()
     res.status(201).json({  success: true, data: leagueData})
+}
+export const getUpcomingGames = async (req, res) => {
+    if(!req.body.leagueId){
+        return res.status(400).json({ success: false, message: 'Please provide a leagueId field'})
+    }
+    try{
+        let games
+        const now = new Date()
+        const targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString()
+        const league = await League.findById(req.body.leagueId)
+        if(!league){
+            return res.status(404).json({ success: false, message: `League with id ${req.body.leagueId} not found` })
+        }
+        if(league.mode === 'classic'){
+            games = await Game.find({ date: targetDate })
+        }
+        if(league.mode === 'team'){
+            const team = await Team.findById(league.team)
+            games = await Game.find({ 
+                date: { $gte: today, $lte: new Date(today.getFullYear(), today.getMonth(), today.getDate()+7) },
+                $or: [{ home_team: team._id }, { away_team: team._id }]
+            }).sort({ date: 1 })
+        }
+        
+        if(!games){
+            return res.status(404).json({ success: false, message: `No upcoming games found for league with id ${req.body.leagueId}` })
+        }
+        games = await Promise.all(games.map(async game => {
+            let status
+            const away_team_document = await Team.findById(game.away_team)
+            const home_team_document = await Team.findById(game.home_team)
+            const retrieved_game = await api.get(`/games/${game.balldontlie_id}`)
+            if(retrieved_game.data.data.status === 'Final'){
+                status = 'Final'
+                game.away_team_score = retrieved_game.data.data.visitor_team_score
+                game.home_team_score = retrieved_game.data.data.home_team_score
+                await game.save()
+            }
+            else if (!isNaN(Date.parse(retrieved_game.data.data.status))) {
+                status = 'Upcoming'
+            } else {
+                status = retrieved_game.data.data.status
+            }
+            return {
+                _id: game._id,
+                date: game.date,
+                status: status,
+                away_team: { id: game.away_team, name: away_team_document.name },
+                home_team: { id: game.home_team, name: home_team_document.name },
+                home_team_score: game.home_team_score,
+                away_team_score: game.away_team_score,
+            }
+        }))
+        return res.status(200).json({ success: true, message: `Upcoming games for league with id ${req.body.leagueId}`, data: games })
+    }
+    catch(err){
+        console.log(err)
+        return res.status(500).json({ success: false, message: 'Server Error'})
+    }
 }
 
 export const addPlayers = async (req, res) => {
@@ -58,7 +129,8 @@ export const addPlayers = async (req, res) => {
             return res.status(400).json(verifiedData);
         }
 
-        const {league, verifiedPlayers} = verifiedData
+        //retrieve league object and ids of existing players
+        const { league, verifiedPlayers } = verifiedData
         const allPlayers = [...league.member_players, ...league.invited_players, ...league.requesting_players].map(p => p.toString()); //cast to String for includes() check
 
         const playersAlreadyInLeague = verifiedPlayers.filter(player => allPlayers.includes(player.toString()));
@@ -66,6 +138,14 @@ export const addPlayers = async (req, res) => {
 
         if(invited_players.length > 0){
             league.invited_players.push(...invited_players)
+            for(const playerId of invited_players){
+                await LeagueMembership.create({
+                    player: playerId,
+                    league: league._id,
+                    games: [],
+                    predictions: [],
+                })
+            }
             await league.save()
         }
         
@@ -125,6 +205,95 @@ export const removePlayer = async(req, res) => {
         return res.status(500).json({ success: false, message: "Server Error" });
     }
 }
+//for player to accept invite from league
+export const acceptLeagueInvite = async(req, res) => {
+    if(!req.body.league){
+        return res.status(400).json({ success: false, message: 'Please provide a league field' })
+    }
+    try{
+        const player = await Player.findOne({ user: req.userId})
+        const league = await League.findOne({ _id: req.body.league })
+        if(!player){
+            return res.status(404).json({ success: false, message: `Player with user id ${req.userId} not found` })
+        }
+        if(!league){
+            return res.status(404).json({ success: false, message: `League with id ${req.body.league} not found` })
+        }
+        if(player in league.invited_players.map(p => p.toString())){
+            return res.status(404).json({ success: false, message: `Player with id ${player._id} is not in invited_players in league with id ${league._id}` })
+        }
+        league.invited_players.pull(player._id)
+        league.member_players.push(player._id)
+        await league.save()
+        return res.status(200).json({ success: true, message: `Player with id ${player._id} successfully added to member_players in league with id ${league._id}` })
+    }
+    catch(err){
+        console.log(err)
+        return res.status(500).json({ success: false, message: 'Server Error'})
+    }
+}
+export const sendLeagueJoinRequest = async(req, res) => {
+    if(!req.body.joinCode){
+        return res.status(400).json({ success: false, message: 'Please provide a join code field' })
+    }
+    try{
+        const player = await Player.findOne({ user: req.userId })
+        const league = await League.findOne({ join_code: req.body.joinCode })
+        if(!player){
+            return res.status(404).json({ success: false, message: `Player with id ${player._id} not found` })
+        }
+        if(!league){
+            return res.status(404).json({ success: false, message: `League with join code ${req.body.joinCode} not found` })
+        }
+        if(player._id.toString() in [...league.member_players, ...league.invited_players, ...league.requesting_players].map(p => p.toString())){
+            return res.status(400).json({ success: false, message: `Player with id ${player._id} is either already a member of league with id ${league._id} or has requested or been invited to join` })
+        }
+        league.requesting_players.push(player._id)
+        await league.save()
+        return res.status(200).json({ success: true, message: `Player with id ${player._id} successfully added to requesting_players in league with id ${league._id}` })
+    }
+    catch(err){
+        console.log(err)
+        return res.status(500).json({ success: false, message: 'Server Error'})
+    }
+}
+export const acceptJoinCodeRequest = async(req, res) => {
+    if(!req.body.playerId){
+        return res.status(400).json({ success: false, message: 'Please provide a playerId field to accept into the league'})
+    }
+    if(!req.body.leagueId){
+        return res.status(400).json({ success: false, message: 'Please provide a leagueId field'})
+    }
+    try{
+        const league = await League.findOne({ _id: req.body.leagueId })
+        const leagueOwner = await Player.findOne({ user: req.userId })
+        const player = await Player.findOne({ _id: req.body.playerId })
+        if(!league){
+            return res.status(404).json({ success: false, message: `League with id ${req.body.leagueId} not found` })
+        }
+        if(!player){
+            return res.status(404).json({ success: false, message: `Player with id ${req.body.playerId} not found` })
+        }
+        if(!leagueOwner){
+            return res.status(404).json({ success: false, message: `Player with user id ${req.userId} not found` })
+        }
+        if(league.owner.toString !== leagueOwner._id.toString()){
+            return res.status(403).json({ success: false, message: `Player with id ${req.body.playerId} is not the owner of league with id ${req.body.leagueId}` })
+        }
+        
+        if(!(player._id in league.requesting_players.map(p => p.toString()))){
+            return res.status(400).json({ success: false, message: `Player with id ${req.body.playerId} is not in requesting_players of league with id ${req.body.leagueID}`})
+        }
+        league.requesting_players.pull(player._id)
+        league.member_players.push(player._id)
+        await league.save()
+        return res.status(200).json({ success: true, message: `Player with id ${player._id} successfully added to league with id ${league._id}` })
+    }
+    catch(err){
+        console.log(err)
+        return res.status(500).json({ success: false, message: 'Server Error'})
+    }
+}
 
 const verifyLeagueAndPlayers = async (req) => {
     const { leagueId, players } = req.body;
@@ -137,13 +306,13 @@ const verifyLeagueAndPlayers = async (req) => {
         const userPlayer = await Player.findOne({ user: req.userId})
         const league = await League.findById(leagueId)
 
-        if (!userPlayer) {
+        if(!userPlayer) {
             return { success: false, message: `Player with user id ${req.userId} not found` };
         }
-        if (!league) {
+        if(!league) {
             return { success: false, message: `League with id ${leagueId} not found` };
         }
-        if(league.owner !== userPlayer._id){
+        if(league.owner.toString() !== userPlayer._id.toString()){
             return { success: false, message: `Player with user id ${req.userId} is not the owner of league with id ${leagueId}` };
         }
 
