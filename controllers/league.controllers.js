@@ -7,117 +7,147 @@ import User from '../models/user.module.js'
 import Game from '../models/game.module.js'
 import Team from '../models/team.module.js'
 import LeagueMembership from '../models/leagueMembership.module.js'
+import { formatGameForUser } from './game.controllers.js'
 
 export const createLeague = async(req, res) => {
     const rawData = req.body
     let userPlayer;
     let team
-    try{
-        userPlayer = await Player.findOne({ user: req.userId })
-        if(!userPlayer){    
-            res.status(404).json({ success: false, message: `Player with user id ${req.userId} not found`})
-        }
-    }
-    catch(err){
-        res.status(500).json({ success: false, message: 'Server Error' })
-    }
-
-    if(!rawData.name || !rawData.mode)
-    {
-        return res.status(400).json({ success: false, message: "Please provide all league fields"})
-    }
-    //add check to make sure team is provided if team mode is specified
-    if(rawData.mode === "team"){
-        if(!rawData.team){
-            return res.status(400).json({ success: false, message: "Please provide a team field" })
-        }
-        team = await Team.findOne({ name: rawData.team })
-        if(!team){
-            return res.status(400).json({ success: false, message: "Not a valid team team field "})
+    try {
+        userPlayer = await Player.findOne({ user: req.userId });
+        if (!userPlayer) {
+            return res.status(404).json({ success: false, message: `Player with user id ${req.userId} not found` });
         }
 
-    }
+        if (!rawData.name || !rawData.mode) {
+            return res.status(400).json({ success: false, message: "Please provide all league fields" });
+        }
 
-    try{
-        const leagueExists = await League.exists({ name: rawData.name })
-        if(!leagueExists){    
-            return res.status(400).json({ success: false, message: "League name already taken" })
-        }
-    }
-    catch(err){
-        return res.status(500).json({ success: false, message: 'Server Error' })
-    }
-
-    const leagueData = {
-        owner: userPlayer._id,
-        ...rawData,
-        team: team._id,
-        member_players: [],
-        requesting_players: [],
-        invited_players: rawData.invited_players || []
-    }
-    
-    const newLeague = new League(leagueData)
-    await newLeague.save()
-    res.status(201).json({  success: true, data: leagueData})
-}
-export const getUpcomingGames = async (req, res) => {
-    if(!req.body.leagueId){
-        return res.status(400).json({ success: false, message: 'Please provide a leagueId field'})
-    }
-    try{
-        let games
-        const now = new Date()
-        const targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString()
-        const league = await League.findById(req.body.leagueId)
-        if(!league){
-            return res.status(404).json({ success: false, message: `League with id ${req.body.leagueId} not found` })
-        }
-        if(league.mode === 'classic'){
-            games = await Game.find({ date: targetDate })
-        }
-        if(league.mode === 'team'){
-            const team = await Team.findById(league.team)
-            games = await Game.find({ 
-                date: { $gte: today, $lte: new Date(today.getFullYear(), today.getMonth(), today.getDate()+7) },
-                $or: [{ home_team: team._id }, { away_team: team._id }]
-            }).sort({ date: 1 })
-        }
-        
-        if(!games){
-            return res.status(404).json({ success: false, message: `No upcoming games found for league with id ${req.body.leagueId}` })
-        }
-        games = await Promise.all(games.map(async game => {
-            let status
-            const away_team_document = await Team.findById(game.away_team)
-            const home_team_document = await Team.findById(game.home_team)
-            const retrieved_game = await api.get(`/games/${game.balldontlie_id}`)
-            if(retrieved_game.data.data.status === 'Final'){
-                status = 'Final'
-                game.away_team_score = retrieved_game.data.data.visitor_team_score
-                game.home_team_score = retrieved_game.data.data.home_team_score
-                await game.save()
+        if (rawData.mode === "team") {
+            if (!rawData.team) {
+                return res.status(400).json({ success: false, message: "Please provide a team field" });
             }
-            else if (!isNaN(Date.parse(retrieved_game.data.data.status))) {
-                status = 'Upcoming'
+            team = await Team.findOne({ name: rawData.team });
+            if (!team) {
+                return res.status(400).json({ success: false, message: "Not a valid team field" });
+            }
+        }
+
+        const leagueExists = await League.exists({ name: rawData.name });
+        if (leagueExists) {
+            return res.status(400).json({ success: false, message: "League name already taken" });
+        }
+
+        const invitedPlayers = rawData.invited_players || [];
+        const verifiedInvitedPlayers = [];
+        for (const playerId of invitedPlayers) {
+            if (mongoose.Types.ObjectId.isValid(playerId) && await Player.exists({ _id: playerId })) {
+                verifiedInvitedPlayers.push(playerId);
             } else {
-                status = retrieved_game.data.data.status
+                return res.status(400).json({ success: false, message: `Invalid player ID in invited_players: ${playerId}` });
             }
+        }
+
+        const leagueData = {
+            owner: userPlayer._id,
+            ...rawData,
+            team: team ? team._id : undefined,
+            member_players: [],
+            requesting_players: [],
+            invited_players: verifiedInvitedPlayers
+        };
+
+        const newLeague = new League(leagueData);
+        await newLeague.save();
+        return res.status(201).json({ success: true, data: leagueData });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ success: false, message: 'Server Error' });
+    }
+}
+export const getLeagues = async (req, res) => {
+    try{
+        const player = await Player.findOne({ user: req.userId})
+        const retrievedLeagues = await League.find({ 
+            $or: [
+                { owner: player._id },
+                { member_players: player._id }
+            ]
+        });
+        const leagues = await Promise.all(retrievedLeagues.map(async league => {
+            const upcoming_games = await upcomingGames(league._id)
+            /*
+                upcoming_games = { succcess, games: [game1, game2, ...] }
+            */
             return {
-                _id: game._id,
-                date: game.date,
-                status: status,
-                away_team: { id: game.away_team, name: away_team_document.name },
-                home_team: { id: game.home_team, name: home_team_document.name },
-                home_team_score: game.home_team_score,
-                away_team_score: game.away_team_score,
+                id: league._id,
+                balldontlie_id: league.balldontlie_id,
+                upcoming_games: upcoming_games.success ? upcoming_games.games : []
             }
         }))
-        return res.status(200).json({ success: true, message: `Upcoming games for league with id ${req.body.leagueId}`, data: games })
+        return res.status(200).json({ success: true, message: 'Leagues retrieved successfully', data: leagues })
     }
     catch(err){
         console.log(err)
         return res.status(500).json({ success: false, message: 'Server Error'})
+    }
+}
+async function upcomingGames(leagueId){
+    try{
+        let games
+        const league = await League.findById(leagueId)
+
+        const start = new Date()
+        const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7)
+        const { startYear, startMonth, startDay } = { 
+            startYear: String(start.getFullYear()),
+            startMonth: String(start.getMonth()+1).padStart(2, '0'), 
+            startDay: String(start.getDate()).padStart(2, '0')
+        }
+        const { endYear, endMonth, endDay } = {
+            endYear: String(end.getFullYear()),
+            endMonth: String(end.getMonth()+1).padStart(2, '0'),
+            endDay: String(end.getDate()).padStart(2, '0')
+        }
+        const todayDateString = `${startYear}-${startMonth}-${startDay}T00:00:00.000Z`
+        const nextWeekDateString = `${endYear}-${endMonth}-${endDay}T00:00:00.000Z`
+        
+        if(!league){
+            return { success: false, message: `League with id ${leagueId} not found` }
+        }
+        if(league.mode === 'classic'){
+            games = await Game.find({ 
+                date: {
+                    $gte: new Date(todayDateString), 
+                    $lte: new Date(nextWeekDateString) 
+                }
+            }).sort({ balldontlie_id: 1 }).limit(20)
+        }
+        if(league.mode === 'team'){
+            const team = await Team.findById(league.team)
+            games = await Game.find({ 
+                date: {
+                    $gte: new Date(todayDateString), 
+                    $lte: new Date(nextWeekDateString) 
+                },
+                $or: [{ away_team: team._id }, { home_team: team._id }]
+            }).sort({ balldontlie_id: 1}).limit(20)
+        }
+        games = await Promise.all(games.map(async game => {
+            const formattedGame = await formatGameForUser(game)
+            if(formattedGame.success){
+                /*
+                    formattedGame = { success, formatted }
+                */
+                return formattedGame.formatted
+            }
+            return null
+        }))
+        return { success: true, games: games.filter(game => game !== null) }
+    }
+    catch(err){
+        console.log(err)
+        return { success: false, games: [], message: 'Server Error'}
     }
 }
 
