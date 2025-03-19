@@ -7,7 +7,7 @@ import User from '../models/user.module.js'
 import Game from '../models/game.module.js'
 import Team from '../models/team.module.js'
 import LeagueMembership from '../models/leagueMembership.module.js'
-import { formatGameForUser } from './game.controllers.js'
+import { upcomingGames, recentGames } from '../helpers/league.helpers.js'
 
 export const createLeague = async(req, res) => {
     const rawData = req.body
@@ -76,13 +76,19 @@ export const getLeagues = async (req, res) => {
         });
         const leagues = await Promise.all(retrievedLeagues.map(async league => {
             const upcoming_games = await upcomingGames(league._id)
+            const recent_games = await recentGames(league._id)
+            const team = league.mode === 'team' ? await Team.findById(league.team) : null
             /*
-                upcoming_games = { succcess, games: [game1, game2, ...] }
+                upcoming_games/recent_games = { succcess, games: [game1, game2, ...] }
             */
             return {
                 id: league._id,
                 balldontlie_id: league.balldontlie_id,
-                upcoming_games: upcoming_games.success ? upcoming_games.games : []
+                name: league.name,
+                mode: league.mode.charAt(0).toUpperCase() + league.mode.slice(1),
+                team: team?.name,
+                upcoming_games: upcoming_games.success ? upcoming_games.games : [],
+                recent_games: recent_games.success ? recent_games.games : [],
             }
         }))
         return res.status(200).json({ success: true, message: 'Leagues retrieved successfully', data: leagues })
@@ -90,64 +96,6 @@ export const getLeagues = async (req, res) => {
     catch(err){
         console.log(err)
         return res.status(500).json({ success: false, message: 'Server Error'})
-    }
-}
-async function upcomingGames(leagueId){
-    try{
-        let games
-        const league = await League.findById(leagueId)
-
-        const start = new Date()
-        const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7)
-        const { startYear, startMonth, startDay } = { 
-            startYear: String(start.getFullYear()),
-            startMonth: String(start.getMonth()+1).padStart(2, '0'), 
-            startDay: String(start.getDate()).padStart(2, '0')
-        }
-        const { endYear, endMonth, endDay } = {
-            endYear: String(end.getFullYear()),
-            endMonth: String(end.getMonth()+1).padStart(2, '0'),
-            endDay: String(end.getDate()).padStart(2, '0')
-        }
-        const todayDateString = `${startYear}-${startMonth}-${startDay}T00:00:00.000Z`
-        const nextWeekDateString = `${endYear}-${endMonth}-${endDay}T00:00:00.000Z`
-        
-        if(!league){
-            return { success: false, message: `League with id ${leagueId} not found` }
-        }
-        if(league.mode === 'classic'){
-            games = await Game.find({ 
-                date: {
-                    $gte: new Date(todayDateString), 
-                    $lte: new Date(nextWeekDateString) 
-                }
-            }).sort({ balldontlie_id: 1 }).limit(20)
-        }
-        if(league.mode === 'team'){
-            const team = await Team.findById(league.team)
-            games = await Game.find({ 
-                date: {
-                    $gte: new Date(todayDateString), 
-                    $lte: new Date(nextWeekDateString) 
-                },
-                $or: [{ away_team: team._id }, { home_team: team._id }]
-            }).sort({ balldontlie_id: 1}).limit(20)
-        }
-        games = await Promise.all(games.map(async game => {
-            const formattedGame = await formatGameForUser(game)
-            if(formattedGame.success){
-                /*
-                    formattedGame = { success, formatted }
-                */
-                return formattedGame.formatted
-            }
-            return null
-        }))
-        return { success: true, games: games.filter(game => game !== null) }
-    }
-    catch(err){
-        console.log(err)
-        return { success: false, games: [], message: 'Server Error'}
     }
 }
 
