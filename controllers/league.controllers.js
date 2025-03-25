@@ -52,7 +52,7 @@ export const createLeague = async(req, res) => {
             owner: userPlayer._id,
             ...rawData,
             team: team ? team._id : undefined,
-            member_players: [],
+            member_players: [userPlayer._id],
             requesting_players: [],
             invited_players: verifiedInvitedPlayers
         };
