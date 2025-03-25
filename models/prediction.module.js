@@ -13,8 +13,13 @@ const predictionSchema = mongoose.Schema({
     },
     status:{
         type: String,
-        enum: ['pending', 'complete'],
-        default: 'pending'
+        /*
+            pending: user has not submitted prediction
+            submitted: user has submitted prediction, game and score have not been finalized
+            complete: user has submitted prediction and game is complete, score should be assigned
+        */
+        enum: ['Pending', 'Submitted', 'Complete'],
+        default: 'Pending'
     },
     away_team_score:{
         type: Number,

@@ -2,6 +2,7 @@
 import { api, formatDate, formatGame} from "../config/balldontlie_api.js"
 import Team from "../models/team.module.js"
 import Game from "../models/game.module.js"
+import { updatePredictions } from "../helpers/prediction.helpers.js"
 export const loadGames = async (req, res) => {
     const today = new Date()
     const start = new Date(today.getFullYear(), today.getMonth(), today.getDate())
@@ -47,6 +48,7 @@ export const updateGames = async (req, res) => {
                     game.away_team_score = retrievedGame.visitor_team_score
                     game.home_team_score = retrievedGame.home_team_score
                     await game.save()
+                    await updatePredictions(game._id, game.away_team_score, game.home_team_score)
                     numberUpdated++
                 }
             }

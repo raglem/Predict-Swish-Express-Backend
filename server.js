@@ -10,6 +10,8 @@ import leagueRouter from './routes/league.route.js'
 import teamRouter from './routes/team.route.js'
 import predictionRouter from './routes/prediction.route.js'
 
+import { updatePredictions } from './helpers/prediction.helpers.js'
+
 dotenv.config()
 
 const app = express();
@@ -42,8 +44,8 @@ app.listen(PORT, (err) => {
 // run()
 // async function run() {
 //     try{
-//         const response = await api.get(`/games?dates[]=2025-03-12`)
-//         console.log(response.data.data)
+//         const response = await updatePredictions('67e20066195db28d372e192b')
+//         console.log(response)
 //     }
 //     catch(err){
 //         console.log(err)

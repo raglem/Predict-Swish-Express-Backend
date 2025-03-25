@@ -29,10 +29,6 @@ export const getPredictions = async (req, res) => {
                 const away_team_name = await getTeam(game.away_team)
                 const home_team_name = await getTeam(game.home_team)
                 const included_leagues = leagues.filter(league => league.mode === 'classic' || (league.team.toString() === game.away_team.toString() || league.team.toString() === game.home_team.toString()))
-                if(away_team_name === 'Lakers' || home_team_name === 'Lakers'){
-                    console.log(game)
-                    console.log(included_leagues)
-                }
                 if(!prediction){
                     const newPrediction = new Prediction({
                         player: player._id,
@@ -79,7 +75,7 @@ export const submitPrediction = async(req, res) => {
         if(prediction.player.toString() !== player._id.toString()){
             return res.status(403).json({ success: false, message: `Prediction with id ${prediction._id} does not belong to player with user id ${req.userId}` })
         }
-        if(prediction.status === 'completed'){
+        if(prediction.status !== 'Pending'){
             return res.status(400).json({ success: false, message: `Prediction with id ${prediction._id} has already been submitted` })
         }
         if(game.date < new Date()){
@@ -87,7 +83,7 @@ export const submitPrediction = async(req, res) => {
         }
         prediction.away_team_score = req.body.away_team_score
         prediction.home_team_score = req.body.home_team_score
-        prediction.status = 'complete'
+        prediction.status = 'Submitted'
         await prediction.save()
         return res.status(200).json({ success: true, message: `Prediction with id ${req.body.predictionId} submitted` })
     }
