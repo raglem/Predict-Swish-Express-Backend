@@ -30,7 +30,7 @@ export const formatGame = async (game) => {
         const status = getStatus(game)
         const formatted = {
             balldontlie_id: game.id,
-            date: new Date(game.date),
+            date: game.datetime,
             status: status,
             season: game.season,
             away_team: away_team._id,
@@ -38,6 +38,7 @@ export const formatGame = async (game) => {
             away_team_score: game.visitor_team_score,
             home_team_score: game.home_team_score,
         }
+        console.log(formatted)
         return { success: true, formatted }
     }
     catch(err){

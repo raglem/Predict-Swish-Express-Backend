@@ -8,9 +8,7 @@ import playerRouter from './routes/player.route.js'
 import gameRouter from './routes/game.route.js'
 import leagueRouter from './routes/league.route.js'
 import teamRouter from './routes/team.route.js'
-
-import { api } from './config/balldontlie_api.js'
-import Game from './models/game.module.js'
+import predictionRouter from './routes/prediction.route.js'
 
 dotenv.config()
 
@@ -26,6 +24,7 @@ app.use('/players', playerRouter)
 app.use('/games', gameRouter)
 app.use('/leagues', leagueRouter)
 app.use('/teams', teamRouter)
+app.use('/predictions', predictionRouter)
 
 
 app.listen(PORT, (err) => {
@@ -39,17 +38,6 @@ app.listen(PORT, (err) => {
     }
 })
 
-app.get("/", (req, res) => {
-    res.status(200)
-    res.send("Welcome to root URL of Server")
-})
-
-app.post("/", (req, res) => {
-    const num1 = req.body["num1"]
-    const num2 = req.body["num2"]
-    const answer = Number(num1) + Number(num2)
-    res.send(`${num1} + ${num2} = ${answer}`)
-})
 
 // run()
 // async function run() {

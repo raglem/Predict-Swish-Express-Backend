@@ -8,12 +8,13 @@ export const upcomingGames = async leagueId => {
         const league = await League.findById(leagueId)
 
         const start = new Date()
-        const end = new Date(start);
+        start.setHours(0, 0, 0, 0)
+        const end = new Date(start)
         end.setDate(start.getDate() + 7);
 
-        const formatDate = date => date.toISOString().split('T')[0] + "T00:00:00.000Z";
-        const todayDateString = formatDate(start);
-        const nextWeekDateString = formatDate(end);
+        // const formatDate = date => date.toISOString().split('T')[0] + "T00:00:00.000Z";
+        // const todayDateString = formatDate(start);
+        // const nextWeekDateString = formatDate(end);
         
         if(!league){
             return { success: false, message: `League with id ${leagueId} not found` }
@@ -21,8 +22,8 @@ export const upcomingGames = async leagueId => {
         if(league.mode === 'classic'){
             games = await Game.find({ 
                 date: {
-                    $gte: new Date(todayDateString), 
-                    $lte: new Date(nextWeekDateString) 
+                    $gte: new Date(start), 
+                    $lte: new Date(end) 
                 }
             }).sort({ balldontlie_id: 1 }).limit(5)
         }
@@ -30,8 +31,8 @@ export const upcomingGames = async leagueId => {
             const team = await Team.findById(league.team)
             games = await Game.find({ 
                 date: {
-                    $gte: new Date(todayDateString), 
-                    $lte: new Date(nextWeekDateString) 
+                    $gte: new Date(start), 
+                    $lte: new Date(end) 
                 },
                 $or: [{ away_team: team._id }, { home_team: team._id }]
             }).sort({ balldontlie_id: 1}).limit(5)
@@ -65,16 +66,15 @@ export const recentGames = async leagueId => {
         const end = new Date();
         const start = new Date(end);
         start.setDate(end.getDate() - 7);
+        end.setHours(0, 0, 0, 0)
+        end.setDate(end.getDate()-1)
 
-        const formatDate = date => date.toISOString().split('T')[0] + "T00:00:00.000Z";
-        const lastWeekDateString = formatDate(start);
-        const todayDateString = formatDate(end)
 
         if(league.mode === 'classic'){
             games = await Game.find({ 
                 date: {
-                    $gte: new Date(lastWeekDateString), 
-                    $lte: new Date(todayDateString) 
+                    $gte: new Date(start), 
+                    $lte: new Date(end) 
                 },
                 status: 'Final'
             }).sort({ date: -1 }).limit(5)
@@ -84,8 +84,8 @@ export const recentGames = async leagueId => {
             const team = await Team.findById(league.team)
             games = await Game.find({ 
                 date: {
-                    $gte: new Date(lastWeekDateString), 
-                    $lte: new Date(todayDateString) 
+                    $gte: new Date(start), 
+                    $lte: new Date(end) 
                 },
                 status: 'Final',
                 $or: [{ away_team: team._id }, { home_team: team._id }]

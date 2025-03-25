@@ -18,9 +18,6 @@ export const loadGames = async (req, res) => {
                     await newGame.save()
                     numberAdded++
                 }
-                else{
-                    console.log(formattedGame.message)
-                }
             }
         }
         return res.status(200).json({ success: true, message: `${numberAdded} games successfully added`})

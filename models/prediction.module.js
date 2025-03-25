@@ -11,12 +11,19 @@ const predictionSchema = mongoose.Schema({
         ref: 'Game',
         required: true,
     },
+    status:{
+        type: String,
+        enum: ['pending', 'complete'],
+        default: 'pending'
+    },
     away_team_score:{
         type: Number,
+        default: 0,
         required: true
     },
     home_team_score:{
         type: Number,
+        default: 0,
         required: true
     },
     score: {
