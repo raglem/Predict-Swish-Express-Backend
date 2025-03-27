@@ -1,6 +1,9 @@
 import Game from "../models/game.module.js"
 import League from "../models/league.module.js"
+import Player from "../models/player.module.js"
+import Prediction from "../models/prediction.module.js"
 import Team from "../models/team.module.js"
+import User from "../models/user.module.js"
 import { formatUpcomingGame, formatRecentGame } from '../helpers/game.helpers.js'
 export const upcomingGames = async leagueId => {
     try{
@@ -54,7 +57,6 @@ export const upcomingGames = async leagueId => {
         return { success: false, games: [], message: 'Server Error'}
     }
 }
-
 export const recentGames = async leagueId => {
     let games
     try{
@@ -107,5 +109,36 @@ export const recentGames = async leagueId => {
     catch(err){
         console.log(err)
         return { success: false, games: [], message: 'Server Error'}
+    }
+}
+export const getLeaderboard = async (leagueId, userId) => {
+    try{
+        const user = await User.findById(userId).select('username')
+        const player = await Player.findOne({ user: userId })
+        const league = await League.findById(leagueId)
+        let players = []
+
+        for(const playerId of league.member_players){
+            const predictions = await Prediction.find({ player: playerId, status: 'Complete' })
+            const totalScore = predictions.reduce((sum, prediction) => sum + (prediction.score || 0), 0)
+            players.push({ 
+                playerId, 
+                username: user.username,
+                mutualFriend: player.friends.includes(playerId),
+                totalScore, 
+            })
+        }
+        players.sort((a, b) => b.totalScore - a.totalScore)
+        players = players.map((current, i) => {
+            return {
+                ...current,
+                ranking: i+1
+            }
+        })
+        return { success: true, players }
+    }
+    catch(err){
+        console.log(err)
+        return { success: false, message: "Server Error", error: err }
     }
 }

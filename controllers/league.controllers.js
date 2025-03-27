@@ -7,7 +7,8 @@ import User from '../models/user.module.js'
 import Game from '../models/game.module.js'
 import Team from '../models/team.module.js'
 import LeagueMembership from '../models/leagueMembership.module.js'
-import { upcomingGames, recentGames } from '../helpers/league.helpers.js'
+import Prediction from '../models/prediction.module.js'
+import { upcomingGames, recentGames, getLeaderboard } from '../helpers/league.helpers.js'
 
 export const createLeague = async(req, res) => {
     const rawData = req.body
@@ -54,7 +55,7 @@ export const createLeague = async(req, res) => {
             team: team ? team._id : undefined,
             member_players: [userPlayer._id],
             requesting_players: [],
-            invited_players: verifiedInvitedPlayers
+            invited_players: verifiedInvitedPlayers,
         };
 
         const newLeague = new League(leagueData);
@@ -77,9 +78,13 @@ export const getLeagues = async (req, res) => {
         const leagues = await Promise.all(retrievedLeagues.map(async league => {
             const upcoming_games = await upcomingGames(league._id)
             const recent_games = await recentGames(league._id)
+            const leaderboard = await getLeaderboard(league._id, req.userId)
             const team = league.mode === 'team' ? await Team.findById(league.team) : null
             /*
                 upcoming_games/recent_games = { succcess, games: [game1, game2, ...] }
+                leaderboard = {[
+                    { playerId, username, mutualFriend, totalScore }...
+                ]}
             */
             return {
                 id: league._id,
@@ -89,6 +94,7 @@ export const getLeagues = async (req, res) => {
                 team: team?.name,
                 upcoming_games: upcoming_games.success ? upcoming_games.games : [],
                 recent_games: recent_games.success ? recent_games.games : [],
+                leaderboard: leaderboard.success ? leaderboard.players: [],
             }
         }))
         return res.status(200).json({ success: true, message: 'Leagues retrieved successfully', data: leagues })

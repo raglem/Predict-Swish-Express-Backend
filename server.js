@@ -10,8 +10,6 @@ import leagueRouter from './routes/league.route.js'
 import teamRouter from './routes/team.route.js'
 import predictionRouter from './routes/prediction.route.js'
 
-import { updatePredictions } from './helpers/prediction.helpers.js'
-
 dotenv.config()
 
 const app = express();
@@ -44,7 +42,7 @@ app.listen(PORT, (err) => {
 // run()
 // async function run() {
 //     try{
-//         const response = await updatePredictions('67e20066195db28d372e192b')
+//         const response = await getLeaderboard('67c4d864ce291ff19e36d925', '67b823e26c16639f4c81b934')
 //         console.log(response)
 //     }
 //     catch(err){
