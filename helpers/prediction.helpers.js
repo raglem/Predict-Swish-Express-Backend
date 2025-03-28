@@ -1,4 +1,6 @@
 import Game from "../models/game.module.js"
+import League from "../models/league.module.js"
+import Player from "../models/player.module.js"
 import Prediction from "../models/prediction.module.js"
 
 export const updatePredictions = async (gameId, away_score, home_score) => {
@@ -47,3 +49,24 @@ const calculateScore = (
     return Math.round(away_score_points + home_score_points)
 
 };
+
+export const getRanking = async (gameId, playerId) => {
+    try{
+        let predictions = await Prediction.find({ game: gameId })
+        predictions = predictions.sort((a, b) => b.score - a.score )
+        for(const [i, prediction] of predictions.entries()){
+            if(prediction.player == playerId){
+                return { success: true, 
+                    ranking: {
+                        rank: i+1,
+                        score: prediction.score
+                    } 
+                }
+            }
+        }
+        return { success: true, rank: -1 }
+    }
+    catch(err){
+        return { success: false, rank: -1 }
+    }
+}

@@ -5,6 +5,7 @@ import Prediction from "../models/prediction.module.js"
 import Team from "../models/team.module.js"
 import User from "../models/user.module.js"
 import { formatUpcomingGame, formatRecentGame } from '../helpers/game.helpers.js'
+import { getRanking } from "./prediction.helpers.js"
 export const upcomingGames = async leagueId => {
     try{
         let games
@@ -14,10 +15,6 @@ export const upcomingGames = async leagueId => {
         start.setHours(0, 0, 0, 0)
         const end = new Date(start)
         end.setDate(start.getDate() + 7);
-
-        // const formatDate = date => date.toISOString().split('T')[0] + "T00:00:00.000Z";
-        // const todayDateString = formatDate(start);
-        // const nextWeekDateString = formatDate(end);
         
         if(!league){
             return { success: false, message: `League with id ${leagueId} not found` }
@@ -45,6 +42,15 @@ export const upcomingGames = async leagueId => {
             if(formattedGame.success){
                 /*
                     formattedGame = { success, formatted }
+                    formattedGame.formatted = {
+                        balldontlie_id,
+                        date,
+                        status,
+                        away_team,
+                        home_team
+                        away_team_score,
+                        home_team_score,
+                    }
                 */
                 return formattedGame.formatted
             }
@@ -57,7 +63,7 @@ export const upcomingGames = async leagueId => {
         return { success: false, games: [], message: 'Server Error'}
     }
 }
-export const recentGames = async leagueId => {
+export const recentGames = async (leagueId, playerId) => {
     let games
     try{
         const league = await League.findById(leagueId)
@@ -96,15 +102,35 @@ export const recentGames = async leagueId => {
 
         games = await Promise.all(games.map(async game => {
             const formattedGame = await formatRecentGame(game)
-            if(formattedGame.success){
-                /*
-                    formattedGame = { success, formatted }
-                */
-                return formattedGame.formatted
+            const ranking = await getRanking(game._id, playerId)
+            /*
+                formattedGame = { success, formatted }
+                formattedGame = { success, formatted }
+                formattedGame.formatted = {
+                    balldontlie_id,
+                    date,
+                    status,
+                    away_team,
+                    home_team
+                    away_team_score,
+                    home_team_score,
+                }
+
+                ranking = { success, ranking }
+                ranking.ranking = {
+                    rank: Number,
+                    score,
+                }
+            */
+            if(formattedGame.success && ranking.success){
+                return {
+                    ...formattedGame.formatted,
+                    ...ranking.ranking
+                }
             }
             return null
         }))
-        return { success: true, games: games.filter(game => game !== null) }
+        return { success: true, games: games }
     }
     catch(err){
         console.log(err)
@@ -135,7 +161,11 @@ export const getLeaderboard = async (leagueId, userId) => {
                 ranking: i+1
             }
         })
-        return { success: true, players }
+
+        return { 
+            success: true, 
+            players: players,
+        }
     }
     catch(err){
         console.log(err)

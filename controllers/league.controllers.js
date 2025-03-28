@@ -77,13 +77,22 @@ export const getLeagues = async (req, res) => {
         });
         const leagues = await Promise.all(retrievedLeagues.map(async league => {
             const upcoming_games = await upcomingGames(league._id)
-            const recent_games = await recentGames(league._id)
+            const recent_games = await recentGames(league._id, player._id)
             const leaderboard = await getLeaderboard(league._id, req.userId)
             const team = league.mode === 'team' ? await Team.findById(league.team) : null
             /*
                 upcoming_games/recent_games = { succcess, games: [game1, game2, ...] }
+                game1, game2,... = {
+                    balldontlie_id,
+                    date,
+                    status,
+                    away_team,
+                    home_team
+                    away_team_score,
+                    home_team_score,
+                }
                 leaderboard = {[
-                    { playerId, username, mutualFriend, totalScore }...
+                    { playerId, username, mutualFriend, totalScore, ranking }...
                 ]}
             */
             return {
