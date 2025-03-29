@@ -1,9 +1,10 @@
 import express from 'express'
-import { createLeague, addPlayers, removePlayer, acceptLeagueInvite, sendLeagueJoinRequest, acceptJoinCodeRequest, getLeagues } from '../controllers/league.controllers.js'
+import { acceptJoinCodeRequest, acceptLeagueInvite, addPlayers, createLeague, getLeagues, getLeaguesInvites, removePlayer, sendLeagueJoinRequest } from '../controllers/league.controllers.js'
 
 const leagueRouter = express.Router()
 
 leagueRouter.get('', getLeagues)
+leagueRouter.get('/invites', getLeaguesInvites)
 leagueRouter.post('/create', createLeague)
 leagueRouter.post('/add', addPlayers)
 leagueRouter.post('/request', sendLeagueJoinRequest)

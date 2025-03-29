@@ -110,7 +110,25 @@ export const getLeagues = async (req, res) => {
     }
     catch(err){
         console.log(err)
-        return res.status(500).json({ success: false, message: 'Server Error'})
+        return res.status(500).json({ success: false, message: 'Server Error' })
+    }
+}
+export const getLeaguesInvites = async (req, res) => {
+    try{
+        const player = await Player.findOne({ user: req.userId })
+        const member_leagues = await League.find({ member_players: player._id }).select('_id name')
+        const invited_leagues = await League.find({ invited_players: player._id }).select('_id name')
+        const requesting_leagues = await League.find({ requesting_players: player._id }).select('_id name')
+        const data = {
+            member_leagues,
+            invited_leagues,
+            requesting_leagues
+        }
+        return res.status(200).json({ success: true, data })
+    }
+    catch(err){
+        console.log(err)
+        return res.status(500).json({ success: false, message: 'Server Error' })
     }
 }
 
