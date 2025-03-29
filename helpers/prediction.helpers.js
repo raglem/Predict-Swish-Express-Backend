@@ -55,7 +55,16 @@ export const getRanking = async (gameId, playerId) => {
         let predictions = await Prediction.find({ game: gameId })
         predictions = predictions.sort((a, b) => b.score - a.score )
         for(const [i, prediction] of predictions.entries()){
-            if(prediction.player == playerId){
+            if(prediction.player.toString() === playerId.toString()){
+                return { success: true, 
+                    ranking: {
+                        rank: i+1,
+                        score: prediction.score
+                    } 
+                }
+            }
+            //lowest possible score, user will be tied with this rank
+            if(prediction.score === 0){
                 return { success: true, 
                     ranking: {
                         rank: i+1,
@@ -64,9 +73,15 @@ export const getRanking = async (gameId, playerId) => {
                 }
             }
         }
-        return { success: true, rank: -1 }
+        return { success: true, 
+                ranking: {
+                    // in the case no one made a prediction, all users will be tied for 1st
+                    rank: Math.max(1, predictions.length),
+                    score: 0
+                } 
+        }
     }
     catch(err){
-        return { success: false, rank: -1 }
+        return { success: false, ranking: -1 }
     }
 }
