@@ -3,6 +3,61 @@ import { api, formatDate, formatGame} from "../config/balldontlie_api.js"
 import Team from "../models/team.module.js"
 import Game from "../models/game.module.js"
 import { updatePredictions } from "../helpers/prediction.helpers.js"
+import Player from "../models/player.module.js"
+import League from "../models/league.module.js"
+import { formatGameWithPredictionStatus, formatUpcomingGame } from "../helpers/game.helpers.js"
+export const getGames = async (req, res) => {
+    const date = new Date()
+    const nextWeek = new Date(date);
+    nextWeek.setDate(date.getDate() + 7);
+    try{
+        const player = await Player.findOne({ user: req.userId })
+        const leagues = await League.find({ member_players: player._id })
+        let games = []
+        for(const league of leagues){
+            if(league.mode == 'classic'){
+                let nextGames = await Game.find({ 
+                    date: {
+                        $gte: date,
+                        $lt: nextWeek
+                    }
+                }).select('_id')
+                nextGames = await Promise.all(nextGames.map(async game => {
+                    const res = await formatGameWithPredictionStatus(game._id, league._id)
+                    if(res.success){
+                        return res.formatted
+                    }
+                    return
+                }))
+                games.push([...nextGames])
+            }
+            else{
+                const team = league.team
+                let teamGames = await Game.find({ 
+                    team: team,
+                    date: {
+                        $gte: date,
+                        $lt: nextWeek
+                    }
+                }).select('_id')
+                teamGames = await Promise.all(teamGames.map(async game => {
+                    const res = await formatGameWithPredictionStatus(game)
+                    if(res.success){
+                        return res.formatted
+                    }
+                    return
+                }))
+                games.push([...teamGames])
+            }
+        }
+        games.sort((a,b) => a.date - b.date)
+        return res.status(200).json({ success: true, data: games })
+    }
+    catch(err){
+        console.log(err)
+        return res.status(400).json({ success: false, message: 'Server Error' })
+    }
+}
 export const loadGames = async (req, res) => {
     const today = new Date()
     const start = new Date(today.getFullYear(), today.getMonth(), today.getDate())

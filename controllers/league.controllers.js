@@ -120,9 +120,9 @@ export const getLeaguesInvites = async (req, res) => {
         const invited_leagues = await League.find({ invited_players: player._id }).select('_id name')
         const requesting_leagues = await League.find({ requesting_players: player._id }).select('_id name')
         const data = {
-            member_leagues,
-            invited_leagues,
-            requesting_leagues
+            member_leagues: member_leagues.map(league => ({ ...league.toObject(), id: league._id })),
+            invited_leagues: invited_leagues.map(league => ({ ...league.toObject(), id: league._id })),
+            requesting_leagues: requesting_leagues.map(league => ({ ...league.toObject(), id: league._id })),
         }
         return res.status(200).json({ success: true, data })
     }
@@ -216,27 +216,70 @@ export const removePlayer = async(req, res) => {
         return res.status(500).json({ success: false, message: "Server Error" });
     }
 }
+export const removeCurrentPlayer = async(req, res) => {
+    if(!req.body.leagueId){
+        return res.status(400).json({ success: false, message: 'Please provide leagueId field'})
+    }
+
+    try{
+        const player = await Player.findOne({ user: req.userId})
+        const playerId = player._id
+        const league = await League.findById(req.body.leagueId)
+    
+        if(!league){
+            return res.status(404).json({ success: false, message: `League with ${req.body.leagueId} not found`})
+        }
+        if(!player){
+            return res.status(404).json({ success: false, message: `Player with ${playerId} not found`}) 
+        }
+        if (!league.member_players.includes(playerId) && !league.invited_players.includes(playerId) && !league.requesting_players.includes(playerId)) {
+            return res.status(404).json({ success: false, message: `Player with id ${playerId} is not in the league` });
+        }
+
+        if(league.member_players.includes(playerId)){
+            league.member_players.pull(playerId)
+            await league.save()
+        }
+        else if(league.invited_players.includes(playerId)){
+            league.invited_players.pull(playerId)
+            await league.save()
+        }
+        else{
+            league.requesting_players.pull(playerId)
+            await league.save()
+        }
+        return res.status(200).json({ success: true, message: `Current player with ${playerId} removed from league with id ${league._id}`, data: { name: league.name }})
+    }
+    catch(err){
+        console.log(err)
+        return res.status(500).json({ success: false, message: "Server Error" });
+    }
+}
 //for player to accept invite from league
 export const acceptLeagueInvite = async(req, res) => {
-    if(!req.body.league){
+    if(!req.body.leagueId){
         return res.status(400).json({ success: false, message: 'Please provide a league field' })
     }
     try{
         const player = await Player.findOne({ user: req.userId})
-        const league = await League.findOne({ _id: req.body.league })
+        const league = await League.findOne({ _id: req.body.leagueId })
         if(!player){
             return res.status(404).json({ success: false, message: `Player with user id ${req.userId} not found` })
         }
         if(!league){
-            return res.status(404).json({ success: false, message: `League with id ${req.body.league} not found` })
+            return res.status(404).json({ success: false, message: `League with id ${req.body.leagueId} not found` })
         }
-        if(player in league.invited_players.map(p => p.toString())){
+        if(!league.invited_players.map(player => player.toString()).includes(player._id.toString())){
             return res.status(404).json({ success: false, message: `Player with id ${player._id} is not in invited_players in league with id ${league._id}` })
         }
         league.invited_players.pull(player._id)
         league.member_players.push(player._id)
         await league.save()
-        return res.status(200).json({ success: true, message: `Player with id ${player._id} successfully added to member_players in league with id ${league._id}` })
+        return res.status(200).json({ 
+            success: true, 
+            message: `Player with id ${player._id} successfully added to member_players in league with id ${league._id}`, 
+            data: { id: league._id, name: league.name }
+        })
     }
     catch(err){
         console.log(err)
@@ -249,19 +292,29 @@ export const sendLeagueJoinRequest = async(req, res) => {
     }
     try{
         const player = await Player.findOne({ user: req.userId })
+        const playerId = player._id
         const league = await League.findOne({ join_code: req.body.joinCode })
         if(!player){
             return res.status(404).json({ success: false, message: `Player with id ${player._id} not found` })
         }
         if(!league){
-            return res.status(404).json({ success: false, message: `League with join code ${req.body.joinCode} not found` })
+            return res.status(404).json({ success: false, message: `League with join code ${req.body.joinCode} not found`, userMessage: `League with join code ${req.body.joinCode} not found` })
         }
-        if(player._id.toString() in [...league.member_players, ...league.invited_players, ...league.requesting_players].map(p => p.toString())){
-            return res.status(400).json({ success: false, message: `Player with id ${player._id} is either already a member of league with id ${league._id} or has requested or been invited to join` })
+        const all_players = [...league.member_players, ...league.invited_players, ...league.requesting_players].map(player => player.toString())
+        if(all_players.includes(playerId.toString())){
+            return res.status(400).json({ 
+                success: false, 
+                message: `Player with id ${player._id} is either already a member of league with id ${league._id} or has requested or been invited to join`,
+                userMessage: "You're already part of this league. If you are not a member, you have already sent an request or been invited"
+            })
         }
         league.requesting_players.push(player._id)
         await league.save()
-        return res.status(200).json({ success: true, message: `Player with id ${player._id} successfully added to requesting_players in league with id ${league._id}` })
+        return res.status(200).json({ 
+            success: true, 
+            message: `Player with id ${player._id} successfully added to requesting_players in league with id ${league._id}`, 
+            data: { id: league._id, name: league.name }
+        })
     }
     catch(err){
         console.log(err)

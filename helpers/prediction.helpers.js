@@ -2,6 +2,7 @@ import Game from "../models/game.module.js"
 import League from "../models/league.module.js"
 import Player from "../models/player.module.js"
 import Prediction from "../models/prediction.module.js"
+import User from "../models/user.module.js"
 
 export const updatePredictions = async (gameId, away_score, home_score) => {
     try{
@@ -30,11 +31,9 @@ export const updatePredictions = async (gameId, away_score, home_score) => {
 }
 
 const calculateScore = (
-    { actual_away_score, actual_home_score }, 
-    { predicted_away_score, predicted_home_score }
-) => {
-    console.log(actual_away_score)
-    console.log
+        { actual_away_score, actual_home_score }, 
+        { predicted_away_score, predicted_home_score }
+    ) => {
     // Calculate difference between scores, greatest possible difference will be capped at 100
     const away_score_difference = Math.min(100, Math.abs(actual_away_score - predicted_away_score));
     const home_score_difference = Math.min(100, Math.abs(actual_home_score - predicted_home_score));
@@ -83,5 +82,27 @@ export const getRanking = async (gameId, playerId) => {
     }
     catch(err){
         return { success: false, ranking: -1 }
+    }
+}
+
+export const getLeaguePredictions = async (gameId, leagueId) => {
+    try{
+        const predictions = []
+        const league = await League.findById(leagueId)
+        if(!league) return { success: false, message: `League with id ${leagueId} not found`}
+        for(const playerId of league.member_players){
+            const player = await Player.findById(playerId)
+            const user = await User.findById(player.user)
+            const prediction = await Prediction.findOne({ player: playerId, game: gameId })
+            const status = prediction ? prediction.status : 'Pending'
+            predictions.push({
+                username: user.username, status
+            })
+        }
+        return { success: true, predictions: predictions }
+    }
+    catch(err){
+        console.log(err)
+        return { success: false, error: err?.message }
     }
 }

@@ -8,19 +8,20 @@ export const getPredictions = async (req, res) => {
     const now = new Date()
     const today = new Date()
     today.setHours(0, 0, 0, 0)
+    const nextThreeDays = new Date(today)
+    nextThreeDays.setDate(nextThreeDays.getDate() + 3)
     try{
         let games;
         const player = await Player.findOne({ user: req.userId })
         const leagues = await League.find({ member_players: { $in: [player._id] }}).select('_id name mode team')
-        console.log(leagues)
         const predictions = []
 
         if(leagues.some(league => league.mode === 'classic')){
-            games = await Game.find({ date: { $gt: today } }).sort({ date: 1 }).limit(20)
+            games = await Game.find({ date: { $gte: now, $lt: nextThreeDays } }).sort({ date: 1 })
         }
         else{
             const team_ids = leagues.map(league => league.team)
-            games = await Game.find({ $or: [{ away_team: { $in: team_ids } }, { home_team: { $in: team_ids } } ]}).sort({ date: 1 }).limit(20)
+            games = await Game.find({ date: { $gte: now, $lt: nextThreeDays }, $or: [{ away_team: { $in: team_ids } }, { home_team: { $in: team_ids } } ]}).sort({ date: 1 })
         }
    
         for(const game of games){
@@ -38,6 +39,7 @@ export const getPredictions = async (req, res) => {
                     predictions.push({
                         id: newPrediction._id,
                         date: game.date,
+                        status: 'Pending',
                         away_team: away_team_name,
                         home_team: home_team_name,
                         leagues: included_leagues.map(league => league.name)
@@ -47,14 +49,29 @@ export const getPredictions = async (req, res) => {
                     predictions.push({
                         id: prediction._id,
                         date: game.date,
+                        status: prediction.status,
                         away_team: away_team_name,
                         home_team: home_team_name,
+                        away_team_score: prediction.away_team_score,
+                        home_team_score: prediction.home_team_score,
                         leagues: included_leagues.map(league => league.name)
                     })
                 }
             }
         }
-        return res.status(200).json({ success: true, data: predictions })
+
+        // group predictions based off of date
+        const datedPredictions = []
+        predictions.forEach(prediction => {
+            const date = new Date(prediction.date.getFullYear(), prediction.date.getMonth(), prediction.date.getDate()).toISOString().split('T')[0]
+            const existingDateEntry = datedPredictions.find(entry => entry.date === date)
+            if (existingDateEntry) {
+                existingDateEntry.games.push(prediction)
+            } else {
+                datedPredictions.push({ date, games: [prediction] })
+            }
+        })
+        return res.status(200).json({ success: true, data: datedPredictions })
     }
     catch(err){
         console.log(err)
