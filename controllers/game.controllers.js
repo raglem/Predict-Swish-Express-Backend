@@ -9,7 +9,7 @@ import { formatGameWithPredictionStatus, formatUpcomingGame } from "../helpers/g
 export const getGames = async (req, res) => {
     const date = new Date()
     const nextWeek = new Date(date);
-    nextWeek.setDate(date.getDate() + 7);
+    nextWeek.setDate(date.getDate() + 3);
     try{
         const player = await Player.findOne({ user: req.userId })
         const leagues = await League.find({ member_players: player._id })
@@ -21,15 +21,15 @@ export const getGames = async (req, res) => {
                         $gte: date,
                         $lt: nextWeek
                     }
-                }).select('_id')
+                }).limit(10).select('_id')
                 nextGames = await Promise.all(nextGames.map(async game => {
-                    const res = await formatGameWithPredictionStatus(game._id, league._id)
+                    const res = await formatGameWithPredictionStatus(game._id, league._id) //{ success, formatted }
                     if(res.success){
                         return res.formatted
                     }
                     return
                 }))
-                games.push([...nextGames])
+                games.push(...nextGames)
             }
             else{
                 const team = league.team
@@ -39,7 +39,7 @@ export const getGames = async (req, res) => {
                         $gte: date,
                         $lt: nextWeek
                     }
-                }).select('_id')
+                }).limit(10).select('_id')
                 teamGames = await Promise.all(teamGames.map(async game => {
                     const res = await formatGameWithPredictionStatus(game)
                     if(res.success){
@@ -47,10 +47,11 @@ export const getGames = async (req, res) => {
                     }
                     return
                 }))
-                games.push([...teamGames])
+                games.push(...teamGames)
             }
         }
         games.sort((a,b) => a.date - b.date)
+        console.log(games)
         return res.status(200).json({ success: true, data: games })
     }
     catch(err){

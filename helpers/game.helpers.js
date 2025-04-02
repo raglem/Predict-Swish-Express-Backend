@@ -1,4 +1,5 @@
 import Game from "../models/game.module.js"
+import League from "../models/league.module.js"
 import Prediction from "../models/prediction.module.js"
 import Team from "../models/team.module.js"
 import { getLeaguePredictions } from "./prediction.helpers.js"
@@ -40,6 +41,7 @@ export const formatRecentGame = async (gameId) => {
 export const formatGameWithPredictionStatus = async (gameId, leagueId) => {
     try{
         const game = await Game.findById(gameId)
+        const league = await League.findById(leagueId).select('name')
         if(!game){
             return { success: false, message: 'Invalid game object'}
         }
@@ -48,6 +50,7 @@ export const formatGameWithPredictionStatus = async (gameId, leagueId) => {
         const predictions = await getLeaguePredictions(gameId, leagueId) // { success, predictions }
         const formattedGame = {
             balldontlie_id: game.balldontlie_id,
+            league: league.name,
             date: game.date,
             status: game.status,
             away_team: away_team.name,

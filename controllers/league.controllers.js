@@ -66,6 +66,56 @@ export const createLeague = async(req, res) => {
         return res.status(500).json({ success: false, message: 'Server Error' });
     }
 }
+export const getLeague = async(req, res) => {
+    const { leagueId } = req.params;
+
+    if (!leagueId) {
+        return res.status(400).json({ success: false, message: 'Please provide a leagueId parameter' });
+    }
+
+    try {
+        let league = await League.findById(leagueId)
+        if (!league) {
+            return res.status(404).json({ success: false, message: `League with id ${leagueId} not found` });
+        }
+        const member_players = await Promise.all(league.member_players.map(async playerId => {
+            const player = await Player.findById(playerId).select('user')
+            const user = await User.findById(player.user).select('username')
+            return {
+                id: playerId,
+                name: user.username,
+            }
+        }))
+        const invited_players = await Promise.all(league.member_players.map(async playerId => {
+            const player = await Player.findById(playerId).select('user')
+            const user = await User.findById(player.user).select('username')
+            return {
+                id: playerId,
+                name: user.username,
+            }
+        }))
+        const requesting_players = await Promise.all(league.member_players.map(async playerId => {
+            const player = await Player.findById(playerId).select('user')
+            const user = await User.findById(player.user).select('username')
+            return {
+                id: playerId,
+                name: user.username,
+            }
+        }))
+        const team = league.mode === 'team' ? await Team.findById(league.team).select('name') : {}
+        return res.status(200).json({ success: true, data: { 
+            ...league.toObject(), 
+            id: league._id, 
+            member_players, 
+            invited_players, 
+            requesting_players,
+            team: team?.name
+        }});
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ success: false, message: 'Server Error' });
+    }
+}
 export const getLeagues = async (req, res) => {
     try{
         const player = await Player.findOne({ user: req.userId})
@@ -125,6 +175,36 @@ export const getLeaguesInvites = async (req, res) => {
             requesting_leagues: requesting_leagues.map(league => ({ ...league.toObject(), id: league._id })),
         }
         return res.status(200).json({ success: true, data })
+    }
+    catch(err){
+        console.log(err)
+        return res.status(500).json({ success: false, message: 'Server Error' })
+    }
+}
+// only meant to update name, mode, and team fields
+export const updateLeague = async (req, res) => {
+    const { leagueId } = req.params
+
+    try{
+        const league = await League.findById(leagueId)
+        let change = false
+        if(req.body.name && req.body.name !== league.name){
+            league.name = req.body.name
+            change = true
+        }
+        if (req.body.mode && req.body.mode.toLowerCase() !== league.mode && (req.body.mode.toLowerCase() === "classic" || req.body.mode.toLowerCase() === "team")) {
+            league.mode = req.body.mode.toLowerCase();
+            change = true;
+        }
+        if(req.body.mode.toLowerCase() === 'team' && req.body.team && req.body.team !== league.team){
+            const team = await Team.findOne({ name: req.body.team }).select('_id')
+            league.team = team.id
+            change = true
+        }
+        if(change){
+            await league.save()
+        }
+        return res.status(200).json({ success: true, message: `League with id ${league._id} successfully saved` })
     }
     catch(err){
         console.log(err)
