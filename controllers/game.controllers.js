@@ -5,54 +5,75 @@ import Game from "../models/game.module.js"
 import { updatePredictions } from "../helpers/prediction.helpers.js"
 import Player from "../models/player.module.js"
 import League from "../models/league.module.js"
-import { formatGameWithPredictionStatus, formatUpcomingGame } from "../helpers/game.helpers.js"
+import { formatGameWithPredictions, formatGameWithPredictionStatus } from "../helpers/game.helpers.js"
 export const getGames = async (req, res) => {
-    const date = new Date()
-    const nextWeek = new Date(date);
-    nextWeek.setDate(date.getDate() + 3);
+    const today = new Date()
+    const nextThreeDays = new Date(today);
+    nextThreeDays.setDate(today.getDate() + 3);
+    const lastThreeDays = new Date(today)
+    lastThreeDays.setDate(today.getDate() - 3)
     try{
         const player = await Player.findOne({ user: req.userId })
         const leagues = await League.find({ member_players: player._id })
-        let games = []
+        const upcoming_games = []
+        const recent_games = []
+        let league_upcoming_games = []
+        let league_recent_games = []
         for(const league of leagues){
             if(league.mode == 'classic'){
-                let nextGames = await Game.find({ 
+                league_upcoming_games = await Game.find({ 
                     date: {
-                        $gte: date,
-                        $lt: nextWeek
+                        $gte: today,
+                        $lt: nextThreeDays
                     }
                 }).limit(10).select('_id')
-                nextGames = await Promise.all(nextGames.map(async game => {
-                    const res = await formatGameWithPredictionStatus(game._id, league._id) //{ success, formatted }
-                    if(res.success){
-                        return res.formatted
+                league_recent_games = await Game.find({ 
+                    date: {
+                        $gte: lastThreeDays,
+                        $lt: today
                     }
-                    return
-                }))
-                games.push(...nextGames)
+                }).limit(10).select('_id')
             }
             else{
                 const team = league.team
-                let teamGames = await Game.find({ 
+                league_upcoming_games = await Game.find({ 
                     team: team,
                     date: {
-                        $gte: date,
-                        $lt: nextWeek
+                        $gte: today,
+                        $lt: nextThreeDays
                     }
                 }).limit(10).select('_id')
-                teamGames = await Promise.all(teamGames.map(async game => {
-                    const res = await formatGameWithPredictionStatus(game)
-                    if(res.success){
-                        return res.formatted
+                league_recent_games = await Game.find({ 
+                    team: team,
+                    date: {
+                        $gte: lastThreeDays,
+                        $lt: today
                     }
-                    return
-                }))
-                games.push(...teamGames)
+                }).limit(10).select('_id')
             }
+            league_upcoming_games = await Promise.all(league_upcoming_games.map(async game => {
+                const res = await formatGameWithPredictionStatus(game._id, league._id) //{ success, formatted }
+                if(res.success){
+                    return res.formatted
+                }
+                return
+            }))
+            league_recent_games = await Promise.all(league_recent_games.map(async game => {
+                const res = await formatGameWithPredictions(game._id, league._id) //{ success, formatted }
+                if(res.success){
+                    return res.formatted
+                }
+                return
+            }))
+            upcoming_games.push(...league_upcoming_games)
+            recent_games.push(...league_recent_games)
+
+            league_recent_games = []
+            league_upcoming_games = []
         }
-        games.sort((a,b) => a.date - b.date)
-        console.log(games)
-        return res.status(200).json({ success: true, data: games })
+        upcoming_games.sort((a,b) => a.date - b.date)
+        recent_games.sort((a,b) => b.date - a.date)
+        return res.status(200).json({ success: true, upcoming_games, recent_games })
     }
     catch(err){
         console.log(err)

@@ -74,7 +74,7 @@ export const getLeague = async(req, res) => {
     }
 
     try {
-        let league = await League.findById(leagueId)
+        const league = await League.findOne({ _id: leagueId })
         if (!league) {
             return res.status(404).json({ success: false, message: `League with id ${leagueId} not found` });
         }
@@ -86,7 +86,7 @@ export const getLeague = async(req, res) => {
                 name: user.username,
             }
         }))
-        const invited_players = await Promise.all(league.member_players.map(async playerId => {
+        const invited_players = await Promise.all(league.invited_players.map(async playerId => {
             const player = await Player.findById(playerId).select('user')
             const user = await User.findById(player.user).select('username')
             return {
@@ -94,7 +94,7 @@ export const getLeague = async(req, res) => {
                 name: user.username,
             }
         }))
-        const requesting_players = await Promise.all(league.member_players.map(async playerId => {
+        const requesting_players = await Promise.all(league.requesting_players.map(async playerId => {
             const player = await Player.findById(playerId).select('user')
             const user = await User.findById(player.user).select('username')
             return {
@@ -126,6 +126,8 @@ export const getLeagues = async (req, res) => {
             ]
         });
         const leagues = await Promise.all(retrievedLeagues.map(async league => {
+            const ownerPlayer = await Player.findById(league.owner).select('user')
+            const ownerUser = await User.findById(ownerPlayer.user).select('username')
             const upcoming_games = await upcomingGames(league._id)
             const recent_games = await recentGames(league._id, player._id)
             const leaderboard = await getLeaderboard(league._id, req.userId)
@@ -147,6 +149,10 @@ export const getLeagues = async (req, res) => {
             */
             return {
                 id: league._id,
+                owner: {
+                    id: league.owner,
+                    username: ownerUser.username
+                },
                 balldontlie_id: league.balldontlie_id,
                 name: league.name,
                 mode: league.mode.charAt(0).toUpperCase() + league.mode.slice(1),
@@ -156,7 +162,8 @@ export const getLeagues = async (req, res) => {
                 leaderboard: leaderboard.success ? leaderboard.players: [],
             }
         }))
-        return res.status(200).json({ success: true, message: 'Leagues retrieved successfully', data: leagues })
+        const owned_leagues = leagues.filter(league => league.owner.id.toString() === player._id.toString())
+        return res.status(200).json({ success: true, message: 'Leagues retrieved successfully', leagues, owned_leagues })
     }
     catch(err){
         console.log(err)
@@ -257,7 +264,6 @@ export const removePlayer = async(req, res) => {
     if(!req.body.leagueId || !req.body.playerId){
         return res.status(400).json({ success: false, message: 'Please provide leagueId and playerId field to delete'})
     }
-
     try{
         const userPlayer = await Player.findOne({ user: req.userId})
         const league = await League.findById(req.body.leagueId)
@@ -270,8 +276,8 @@ export const removePlayer = async(req, res) => {
         if(!player){
             return res.status(404).json({ success: false, message: `Player with ${playerId} not found`}) 
         }
-        if(league.owner !== userPlayer._id){
-            return { success: false, message: `Player with user id ${req.userId} is not the owner of league with id ${leagueId}` };
+        if(league.owner.toString() !== userPlayer._id.toString()){
+            return res.status(404).json({ success: false, message: `Player with user id ${req.userId} is not the owner of league with id ${req.body.leagueId}` })
         }
         if (!league.member_players.includes(playerId) && !league.invited_players.includes(playerId) && !league.requesting_players.includes(playerId)) {
             return res.status(404).json({ success: false, message: `Player with ID ${playerId} is not in the league` });
@@ -436,6 +442,23 @@ export const acceptJoinCodeRequest = async(req, res) => {
     catch(err){
         console.log(err)
         return res.status(500).json({ success: false, message: 'Server Error'})
+    }
+}
+export const deleteLeague = async(req, res) => {
+    if(!req.body.leagueId){
+        return res.status(400).json({ success: false, message: 'Please provide a leagueId field' })
+    }
+    try{
+        const league = await League.findById(req.body.leagueId);
+        if (!league) {
+            return res.status(404).json({ success: false, message: `League with id ${req.body.leagueId} not found` });
+        }
+        await league.deleteOne();
+        return res.status(204).json({ success: true, message: `League with id ${req.body.leagueId} deleted` })
+    }
+    catch(err){
+        console.log(err)
+        return res.status(500).json({ success: false, message: 'Server Error' })
     }
 }
 

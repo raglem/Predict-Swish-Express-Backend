@@ -85,7 +85,7 @@ export const getRanking = async (gameId, playerId) => {
     }
 }
 
-export const getLeaguePredictions = async (gameId, leagueId) => {
+export const getLeaguePredictionsStatus = async (gameId, leagueId) => {
     try{
         const predictions = []
         const league = await League.findById(leagueId)
@@ -103,6 +103,27 @@ export const getLeaguePredictions = async (gameId, leagueId) => {
     }
     catch(err){
         console.log(err)
+        return { success: false, error: err?.message }
+    }
+}
+export const getLeaguePredictions = async (gameId, leagueId) => {
+    try{
+        const predictions = []
+        const league = await League.findById(leagueId)
+        if(!league) return { success: false, message: `League with id ${leagueId} not found`}
+        for(const playerId of league.member_players){
+            const player = await Player.findById(playerId)
+            const user = await User.findById(player.user)
+            const prediction = await Prediction.findOne({ player: playerId, game: gameId }).select('score')
+            predictions.push({
+                username: user.username,
+                score: prediction.score
+            })
+        }
+        predictions.sort((a, b) => b.score - a.score)
+        return { success: true, predictions }
+    }
+    catch(err){
         return { success: false, error: err?.message }
     }
 }

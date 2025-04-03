@@ -4,8 +4,8 @@ import { acceptJoinCodeRequest, acceptLeagueInvite, addPlayers, createLeague, ge
 const leagueRouter = express.Router()
 
 leagueRouter.get('', getLeagues)
-leagueRouter.get('/:leagueId', getLeague)
 leagueRouter.get('/invites', getLeaguesInvites)
+leagueRouter.get('/:leagueId', getLeague)
 leagueRouter.post('/create', createLeague)
 leagueRouter.post('/add', addPlayers)
 leagueRouter.post('/request', sendLeagueJoinRequest)
