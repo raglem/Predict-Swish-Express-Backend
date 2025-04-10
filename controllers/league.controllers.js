@@ -6,7 +6,6 @@ import { api } from '../config/balldontlie_api.js'
 import User from '../models/user.module.js'
 import Game from '../models/game.module.js'
 import Team from '../models/team.module.js'
-import LeagueMembership from '../models/leagueMembership.module.js'
 import Prediction from '../models/prediction.module.js'
 import { upcomingGames, recentGames, getLeaderboard } from '../helpers/league.helpers.js'
 
@@ -234,18 +233,8 @@ export const addPlayers = async (req, res) => {
         const playersAlreadyInLeague = verifiedPlayers.filter(player => allPlayers.includes(player.toString()));
         const invited_players = verifiedPlayers.filter(player => !allPlayers.includes(player.toString()));
 
-        if(invited_players.length > 0){
-            league.invited_players.push(...invited_players)
-            for(const playerId of invited_players){
-                await LeagueMembership.create({
-                    player: playerId,
-                    league: league._id,
-                    games: [],
-                    predictions: [],
-                })
-            }
-            await league.save()
-        }
+        league.invited_players.push(...invited_players)
+        await league.save()
         
         return res.status(200).json({
             success: true,

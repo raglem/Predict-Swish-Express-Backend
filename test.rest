@@ -1,5 +1,0 @@
-GET https://api.balldontlie.io/v1/games
-Authorization: 47804ccc-7ce8-4162-8e28-b84bf688194a
-Content-Type: application/json
-
-###

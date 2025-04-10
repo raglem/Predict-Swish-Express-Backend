@@ -9,6 +9,7 @@ import gameRouter from './routes/game.route.js'
 import leagueRouter from './routes/league.route.js'
 import teamRouter from './routes/team.route.js'
 import predictionRouter from './routes/prediction.route.js'
+import chatRouter from './routes/chat.route.js'
 
 dotenv.config()
 
@@ -25,6 +26,7 @@ app.use('/games', gameRouter)
 app.use('/leagues', leagueRouter)
 app.use('/teams', teamRouter)
 app.use('/predictions', predictionRouter)
+app.use('/chat', chatRouter)
 
 
 app.listen(PORT, (err) => {

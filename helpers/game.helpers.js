@@ -50,8 +50,9 @@ export const formatGameWithPredictionStatus = async (gameId, leagueId) => {
         const home_team = await Team.findById(game.home_team)
         const predictions = await getLeaguePredictionsStatus(gameId, leagueId) // { success, predictions }
         const formattedGame = {
+            id: game._id,
             balldontlie_id: game.balldontlie_id,
-            league: league.name,
+            league: { id: league._id, name: league.name},
             date: game.date,
             status: game.status,
             away_team: away_team.name,
@@ -76,8 +77,9 @@ export const formatGameWithPredictions = async (gameId, leagueId) => {
         const home_team = await Team.findById(game.home_team)
         const predictions = await getLeaguePredictions(gameId, leagueId) // { success, predictions }
         const formattedGame = {
+            id: game._id,
             balldontlie_id: game.balldontlie_id,
-            league: league.name,
+            league: { id: league._id, name: league.name},
             date: game.date,
             status: game.status,
             away_team: away_team.name,
