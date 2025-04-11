@@ -4,76 +4,121 @@ import League from '../models/league.module.js'
 import Player from '../models/player.module.js'
 import User from '../models/user.module.js'
 
-export const getChat = async (req, res) => {
-    const { gameId, leagueId } = req.query
-    if(!gameId || !leagueId){
-        return res.status(400).json({ success: false, message: 'Please provide fields gameId and leagueId' })
-    }
-    try {
-        // Check if current user should have access to the chat
-        const player = await Player.findOne({ user: req.userId }).select('_id')
-        const game = await Game.findById(gameId)
-        const league = await League.findById(leagueId)
-        if(league && !league.member_players.map(player => player._id.toString()).includes(player._id.toString())){
-            return res.status(403).json({ success: false, message: `Player with id ${player._id} is not a member of league with id ${req.body.leagueId}` })
-        }
+export const handleChatSocket = (socket, io) => {
+    socket.on('join-room', async ({ gameId, leagueId }) => {
+        authorizeRoomAccess(socket.userId, gameId, leagueId).then((res) => {
+            if(res.success){
+                socket.join(res.chat.id.toString())
+                socket.emit('joined-room', res.chat)
+            }
+            else{
+                socket.emit('failed-join-room')
+            }
+        }).catch((err) => {
+            console.log(err)
+            socket.emit('failed-join-room')
+        })
+    })
+    socket.on('send-message', async ({chatId, message}) => {
+        saveMessage(socket, {chatId, message}).then((res) => {
+            if(res.success){
+                console.log("emitting to: " + chatId.toString())
+                io.in(chatId.toString()).emit('receive-message', res.message)
+            }
+            else{
+                socket.emit('error-message')
+            }
+            
+        }).catch((err) => {
+            console.log(err)
+            socket.emit('error-message')
+        })
+        
+    })
+}
 
-        // Retrieve the chat
-        let chat = await Chat.findOne({ game: gameId, league: leagueId})
+const authorizeRoomAccess = async(userId, gameId, leagueId) => {
+    try{
+        let chat = await Chat.findOne({ game: gameId, league: leagueId })
         if(!chat){
-            if(!game){
-                return res.status(400).json({ success: false, message: `Game with id ${gameId} does not exist` })
+            const res = await createChat(gameId, leagueId)
+            if(!res.success){
+                return { success: false, message: res?.message }
             }
-            if(!league){
-                return res.status(400).json({ success: false, message: `Game with id ${leagueId} does not exist` })
-            }
-
-            // Create a new chat if one doesn't exist
-            const newChat = new Chat({
-                game: game._id,
-                league: league._id,
-                messages: []
-            })
-            await newChat.save()
-            chat = newChat
+            chat = res.newChat
         }
-        return res.status(200).json({ success: true, chat})
+        const player = await Player.findOne({ user: userId })
+        const league = await League.findById(leagueId).select('_id member_players')
+
+        if(!league.member_players.map(player => player.toString()).includes(player._id.toString())){
+            return { success: false, message: `Player with id ${player._id} is not a member of league with id ${league._id}`}
+        }
+
+        chat = {
+            id: chat._id,
+            game: chat.game,
+            league: chat.league,
+            messages: chat.messages.map(message => {
+                return {
+                    id: message._id,
+                    player: message.player,
+                    player_name: message.player_name,
+                    date: message.date,
+                    content: message.content
+                }
+            }).sort((a, b) => b.date - a.date)
+        }
+
+        return { success: true, chat: chat }
     }
     catch(err){
         console.log(err)
-        return res.status(500).json({ success: false, message: 'Server Error' })
+        return { success: false, message: 'Server Error' }
     }
 }
-export const sendMessage = async (req, res) => {
-    if(!req.body.chatId || !req.body.content){
-        return res.status(400).json({ success: false, message: 'Please provide a chatId and content field'})
+
+const saveMessage = async (socket, {chatId, message}) => {
+    if(!chatId || !message){
+        return { success: false, message: 'chatId and message were not provided'}
     }
 
     try{
-        const chat = await Chat.findById(req.body.chatId)
+        const chat = await Chat.findById(chatId)
         if(!chat){
-            return res.status(400).json({ success: false, message: `Chat with id ${req.body.chatId} does not exist`})
+            return { success: false, message: `Chat with id ${chatId} does not exist`}
         }
-
-        // Check if current user should have access to the chat
-        const user = await User.findById(req.userId).select('username')
-        const player = await Player.findOne({ user: req.userId }).select('_id')
-        const league = await League.findById(chat.league)
-        if(league && !league.member_players.map(player => player._id.toString()).includes(player._id.toString())){
-            return res.status(403).json({ success: false, message: `Player with id ${player._id} is not a member of league with id ${req.body.leagueId}` })
-        }
-
-        // Create and add new message to the chat
-        chat.messages.push({
-            player: player._id,
-            player_name: user.username,
-            content: req.body.content
-        })
+        const { _id: playerId } = await Player.findOne({ user: socket.userId }).select('_id')
+        const { username } = await User.findById(socket.userId).select('username')
+        const newMessage = { player: playerId, player_name: username, date: new Date(), content: message }
+        chat.messages.push(newMessage)
         await chat.save()
-        return res.status(200).json({ success: true, message: 'Message sent successfully' })
+        return { success: true, message: newMessage }
     }
     catch(err){
         console.log(err)
-        return res.status(500).json({ success: false, message: 'Server Error'})
+        return { success: false, message: 'Server Error'}
     }
+}
+
+const createChat = async (gameId, leagueId) => {
+    try {
+        const game = await Game.findById(gameId)
+        const league = await League.findById(leagueId)
+        if (!game || !league) {
+            return { success: false, message: `Game with id ${gameId} or league with id ${leagueId} does not exist` };
+        }
+
+        const newChat = new Chat({
+            game: game._id,
+            league: league._id,
+            messages: []
+        })
+        await newChat.save()
+        return { success: true, message: `Chat with gameId ${gameId} and leagueId ${leagueId} succesfully created`, newChat: newChat.toObject()}
+    }
+    catch(err){
+        console.log(err)
+        return { success: false, message: 'Server Error' }
+    }
+    
 }
