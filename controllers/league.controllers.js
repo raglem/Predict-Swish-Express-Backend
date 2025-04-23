@@ -8,6 +8,7 @@ import Game from '../models/game.module.js'
 import Team from '../models/team.module.js'
 import Prediction from '../models/prediction.module.js'
 import { upcomingGames, recentGames, getLeaderboard } from '../helpers/league.helpers.js'
+import { VALID_BOT_NAMES, updateBot } from '../helpers/bots.helpers.js'
 
 export const createLeague = async(req, res) => {
     const rawData = req.body
@@ -235,6 +236,17 @@ export const addPlayers = async (req, res) => {
 
         league.invited_players.push(...invited_players)
         await league.save()
+
+        const usernames = await Promise.all(invited_players.map(async playerId => {
+            const player = await Player.findById(playerId).select('user')
+            const user = await User.findById(player.user).select('username')
+            return user.username
+        }))
+        usernames.forEach(username => {
+            if(VALID_BOT_NAMES.includes(username)){
+                updateBot(username)
+            }
+        })
         
         return res.status(200).json({
             success: true,

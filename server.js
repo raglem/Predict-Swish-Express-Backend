@@ -1,7 +1,8 @@
-import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
+import express from 'express'
 import http from 'http'
+import schedule from 'node-schedule';
 import { Server } from 'socket.io'
 
 import { connectDB } from './config/db.js'
@@ -16,8 +17,7 @@ import predictionRouter from './routes/prediction.route.js'
 import chatRouter from './routes/chat.route.js'
 
 import { handleChatSocket } from './controllers/chat.controllers.js'
-import Game from './models/game.module.js'
-import Chat from './models/chat.module.js'
+import { loadGames, updateGames } from './controllers/game.controllers.js'
 
 dotenv.config()
 
@@ -58,3 +58,9 @@ server.listen(PORT, (err) => {
         console.log(err)
     }
 })
+
+schedule.scheduleJob('0 0 * * *', async () => {
+    await loadGames();
+    await updateGames();
+});
+

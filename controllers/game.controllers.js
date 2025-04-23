@@ -6,6 +6,7 @@ import { updatePredictions } from "../helpers/prediction.helpers.js"
 import Player from "../models/player.module.js"
 import League from "../models/league.module.js"
 import { formatGameWithPredictions, formatGameWithPredictionStatus } from "../helpers/game.helpers.js"
+import { updateAllBots } from "../helpers/bots.helpers.js"
 export const getGames = async (req, res) => {
     const today = new Date()
     const nextThreeDays = new Date(today);
@@ -98,6 +99,7 @@ export const loadGames = async (req, res) => {
                 }
             }
         }
+        updateAllBots()
         return res.status(200).json({ success: true, message: `${numberAdded} games successfully added`})
     }
     catch(err) {

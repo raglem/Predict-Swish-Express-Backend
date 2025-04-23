@@ -136,7 +136,7 @@ const getRecentPredictions = async req => {
     try{
         const player = await Player.findOne({ user: req.userId})
         const leagues = await League.find({ member_players: { $in: [player._id] }}).select('_id name mode team')
-        let predictions = await Prediction.find({ player: player._id, status: 'Complete' }).sort({ date: -1}).populate('game').limit(20)
+        let predictions = await Prediction.find({ player: player._id, status: 'Complete' }).sort({ date: -1 }).populate('game').limit(20)
         predictions = await Promise.all(predictions.map(async prediction => {
             const game = await Game.findById(prediction.game).select('date away_team home_team away_team_score home_team_score')
             const away_team_name = await getTeam(game.away_team)
@@ -167,6 +167,7 @@ const getRecentPredictions = async req => {
                 dated_predictions.push({ date, games: [prediction] })
             }
         })
+        dated_predictions.sort((a, b) => new Date(b.date) - new Date(a.date))
         return { success: true, predictions: dated_predictions }
     }
     catch(err){

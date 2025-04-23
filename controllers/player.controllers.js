@@ -2,6 +2,7 @@ import mongoose from 'mongoose'
 
 import Player from '../models/player.module.js'
 import User from '../models/user.module.js'
+import { VALID_BOT_NAMES, updateBot } from '../helpers/bots.helpers.js'
 
 export const getPlayer = async (req, res) => {
     try{
@@ -99,7 +100,13 @@ export const addFriend = async (req, res) => {
         userPlayer.sent_requests.push(friend._id)
         await userPlayer.save()
 
-        const userFriend = await User.findById(friend.user)
+        const userFriend = await User.findById(friend.user).select('username')
+
+        // Add behavior to updateBot if necessary
+        if(VALID_BOT_NAMES.includes(userFriend.username)){
+            console.log(`Updating ${userFriend.username}`)
+            updateBot(userFriend.username)
+        }
 
         return res.status(200).json({ success: true, message: `Player with id ${friendId} was added to sent requests`, data: { id: friend._id, name: userFriend.username }});
     } catch (err) {
