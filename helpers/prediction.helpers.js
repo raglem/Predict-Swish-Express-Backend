@@ -34,17 +34,27 @@ const calculateScore = (
         { actual_away_score, actual_home_score }, 
         { predicted_away_score, predicted_home_score }
     ) => {
-    // Calculate difference between scores, greatest possible difference will be capped at 100
-    const away_score_difference = Math.min(100, Math.abs(actual_away_score - predicted_away_score));
-    const home_score_difference = Math.min(100, Math.abs(actual_home_score - predicted_home_score));
+    /*
+        The max difference determines how many points are awarded based on the difference
+        Ex. Assume the user's prediction is wrong by 10 points. If the max difference is 20 points, the user's scoring quotient is 50% and the raw score will be 50%.
+        If the max difference is 40 points, the scoring quotient is 25% and subtracted from 1, resulting in 75% raw score. 
+        A greater max difference will award more points
+        A lower max difference will award less points
+    */
 
-    // Calculate the maximum possible difference (assuming scores are between 0 and 100)
-    const max_difference = 100;
+    const max_difference = 50;
 
-    // Calculate the score for each difference
-    const away_score_points = (1 - away_score_difference / max_difference) * 50; // Half of the total score
-    const home_score_points = (1 - home_score_difference / max_difference) * 50; // Half of the total score
-    console.log(away_score_points + home_score_points)
+    // Calculate difference between scores, greatest possible difference will be capped at 50 to avoid a scoring quotient greater than 1, which would result in a negative raw score 
+    const away_score_difference = Math.min(max_difference, Math.abs(actual_away_score - predicted_away_score));
+    const home_score_difference = Math.min(max_difference, Math.abs(actual_home_score - predicted_home_score));
+
+    // The raw_score is a percentage representing the user's accuracy (a higher raw score indicates the prediction was closer to the result)
+    const raw_away_score = (1 - away_score_difference / max_difference)
+    const raw_home_score = (1 - home_score_difference / max_difference)
+
+    // The raw scores are multiplied by 50 and summed to get a greatest possible score of 100
+    const away_score_points = raw_away_score * 50; // Half of the total score
+    const home_score_points = raw_home_score * 50; // Half of the total score
     return Math.round(away_score_points + home_score_points)
 
 };

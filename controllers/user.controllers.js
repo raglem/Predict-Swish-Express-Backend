@@ -3,6 +3,7 @@ import mongoose from 'mongoose'
 import jwt from 'jsonwebtoken'
 import User from '../models/user.module.js'
 import Player from '../models/player.module.js'
+import { VALID_BOT_NAMES } from '../helpers/bots.helpers.js'
 
 export const register = async (req, res) => {
     const userData = req.body
@@ -54,6 +55,9 @@ export const login = async (req, res) => {
     const userData = req.body
     if(!userData.username || !userData.password){
         return res.status(400).json({ 'success': 'false', 'message': 'Please provide all user fields'})
+    }
+    if(VALID_BOT_NAMES.includes(userData.username)){
+        return res.status(400).json({ success: false, message: 'Bots are not allowed to login', userMessage: 'You can not login into a bot account'})
     }
 
     const {username, password} = userData

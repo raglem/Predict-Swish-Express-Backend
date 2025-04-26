@@ -145,11 +145,15 @@ export const getLeaderboard = async (leagueId, userId) => {
         let players = []
 
         for(const playerId of league.member_players){
+            const current_player = await Player.findById(playerId).select('user')
+            const user_of_current_player = await User.findById(current_player.user).select('username')
+
             const predictions = await Prediction.find({ player: playerId, status: 'Complete' })
             const totalScore = predictions.reduce((sum, prediction) => sum + (prediction.score || 0), 0)
+            
             players.push({ 
                 playerId, 
-                username: user.username,
+                username: user_of_current_player.username,
                 mutualFriend: player.friends.includes(playerId),
                 totalScore, 
             })
