@@ -11,6 +11,12 @@ const predictionSchema = mongoose.Schema({
         ref: 'Game',
         required: true,
     },
+    leagues: {
+        type: [mongoose.Schema.Types.ObjectId],
+        ref: 'League',
+        required: true,
+        default: []
+    },
     status:{
         type: String,
         /*
@@ -53,7 +59,6 @@ predictionSchema.pre('validate', async function(next){
     catch(err){
         return next(err)
     }
-    
 })
 
 const Prediction = mongoose.model('Prediction', predictionSchema)

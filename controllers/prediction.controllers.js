@@ -44,6 +44,16 @@ export const submitPrediction = async(req, res) => {
         }
         prediction.away_team_score = req.body.away_team_score
         prediction.home_team_score = req.body.home_team_score
+
+        // Update the leagues field with the leagues that the player is currently a member of
+        const leagues = await League.find({ member_players: { $in: [player._id] }}).select('_id')
+        for(const leagueId of leagues){
+            const league = await League.findById(leagueId)
+            if(league.mode === 'classic' || league.team.toString() === game.away_team.toString() || league.team.toString() === game.home_team.toString()){
+                prediction.leagues.push(leagueId)
+            }
+        }
+
         prediction.status = 'Submitted'
         await prediction.save()
         return res.status(200).json({ success: true, message: `Prediction with id ${req.body.predictionId} submitted` })
@@ -74,7 +84,7 @@ const getUpcomingPredictions = async req => {
         }
         else{
             const team_ids = leagues.map(league => league.team)
-            games = await Game.find({ date: { $gte: now, $lt: nextThreeDays }, $or: [{ away_team: { $in: team_ids } }, { home_team: { $in: team_ids } } ]}).sort({ date: 1 })
+            games = await Game.find({ $or: [{ away_team: { $in: team_ids } }, { home_team: { $in: team_ids } } ]}).sort({ date: 1 }).limit(10)
         }
    
         for(const game of games){
@@ -84,6 +94,7 @@ const getUpcomingPredictions = async req => {
                 const home_team_name = await getTeam(game.home_team)
                 const included_leagues = leagues.filter(league => league.mode === 'classic' || (league.team.toString() === game.away_team.toString() || league.team.toString() === game.home_team.toString()))
                 if(!prediction){
+                    // no need to add leagues, leagues are added when the prediction is submitted
                     const newPrediction = new Prediction({
                         player: player._id,
                         game: game._id,
@@ -136,7 +147,18 @@ const getRecentPredictions = async req => {
     try{
         const player = await Player.findOne({ user: req.userId})
         const leagues = await League.find({ member_players: { $in: [player._id] }}).select('_id name mode team')
-        let predictions = await Prediction.find({ player: player._id, status: 'Complete' }).sort({ date: -1 }).populate('game').limit(20)
+
+        let predictions = await Prediction.find({ 
+            player: player._id, 
+            status: 'Complete' 
+        }).populate({
+            path: 'game',
+            select: 'date'
+        });
+
+        // Sort predictions by game date in descending order and take the first 10
+        predictions = predictions.sort((a, b) => new Date(b.game.date) - new Date(a.game.date)).slice(0, 10);
+
         predictions = await Promise.all(predictions.map(async prediction => {
             const game = await Game.findById(prediction.game).select('date away_team home_team away_team_score home_team_score')
             const away_team_name = await getTeam(game.away_team)

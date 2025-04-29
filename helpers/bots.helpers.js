@@ -53,7 +53,7 @@ export const updateBot = async (botName) => {
 }
 export const updateAllBots = async () => {
     try{
-        for(botName of VALID_BOT_NAMES){
+        for(const botName of VALID_BOT_NAMES){
             updateBot(botName)
         }
     }
@@ -111,15 +111,23 @@ async function updateBotPredictions(bot){
     const week = 1000 * 60 * 60 * 24 * 7
     const date_of_week_ago = new Date(Date.now() - week);
     date_of_week_ago.setHours(0, 0, 0, 0);
+    console.log("Updating bots")
 
     try{
-        let games = await Game.find({ date: { $lte: Date.now(), $gt: date_of_week_ago }})
+        // Retrieve all upcoming games
+        let games = await Game.find({ date: { $gte: Date.now() }})
+
+        // Filter out games that the bot has already made predictions for
         const filteredGames = await Promise.all(
             games.map(async game => {
                 const predictionExists = await Prediction.findOne({ player: bot._id, game: game._id })
+
+                // If the prediction does not exist, return the game
                 return predictionExists ? null : game
             })
         );
+
+        // Filter out the null values
         games = filteredGames.filter(game => game !== null);
 
         for(const game of games){
@@ -131,44 +139,16 @@ async function updateBotPredictions(bot){
             const random_away_score = Math.floor(Math.random() * 41) + 90
             const random_home_score = Math.floor(Math.random() * 41) + 90
 
-            prediction.away_score = random_away_score
-            prediction.home_score = random_home_score
+            prediction.away_team_score = random_away_score
+            prediction.home_team_score = random_home_score
             prediction.status = 'Submitted'
 
             await prediction.save()
+
+            console.log(prediction)
         }
     }
     catch(err){
         console.log(err)
     }
 }
-
-// // The bot argument should be the actual bot Player document
-// async function updateBotPredictions(bot){
-//     try{
-//         await createBotPredictions(bot)
-//         let predictions = await Prediction.find({ player: bot._id, status: 'Pending' }).populate('game');
-//         predictions = predictions.filter(prediction => {
-//             return prediction.game && Date.now() < prediction.game.date;
-//         });
-
-//         for(const prediction of predictions){
-//             // Calculate a random score from 90-130
-//             const random_away_score = Math.floor(Math.random() * 41) + 90
-//             const random_home_score = Math.floor(Math.random() * 41) + 90
-
-//             prediction.away_score = random_away_score
-//             prediction.home_score = random_home_score
-//             prediction.status = 'Complete'
-
-//             await prediction.save()
-//         }
-//         return true
-//     }
-//     catch(err){
-//         console.log(err)
-//         return false
-//     }
-// }
-
-// The bot argument should be the actual bot Player document

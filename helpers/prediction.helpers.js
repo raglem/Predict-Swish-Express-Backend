@@ -30,6 +30,31 @@ export const updatePredictions = async (gameId, away_score, home_score) => {
     }
 }
 
+export const updateAllPredictions = async () => {
+    // Get all games within the last week to avoid attempt to update too many predictions
+    const weekAgo = new Date()
+    weekAgo.setDate(weekAgo.getDate() - 7)
+    try{
+        const games = await Game.find({ status: 'Final', date: { $gte: weekAgo } })
+        for(const game of games){
+            const predictions = await Prediction.find({ game: game._id, status: 'Submitted' })
+            for(const prediction of predictions){
+                prediction.score = calculateScore(
+                    { actual_away_score: game.away_team_score, actual_home_score: game.home_team_score },
+                    { predicted_away_score: prediction.away_team_score, predicted_home_score: prediction.home_team_score }
+                )
+                prediction.status = 'Complete'
+                await prediction.save()
+            }
+        }
+        return { success: true, message: `All predictions updated` }
+    }
+    catch(err){
+        console.log(err)
+        return { success: false, message: err?.message }
+    }
+}
+
 const calculateScore = (
         { actual_away_score, actual_home_score }, 
         { predicted_away_score, predicted_home_score }

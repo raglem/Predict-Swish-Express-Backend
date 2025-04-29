@@ -148,7 +148,7 @@ export const getLeaderboard = async (leagueId, userId) => {
             const current_player = await Player.findById(playerId).select('user')
             const user_of_current_player = await User.findById(current_player.user).select('username')
 
-            const predictions = await Prediction.find({ player: playerId, status: 'Complete' })
+            const predictions = await Prediction.find({ player: playerId, leagues: leagueId, status: 'Complete' })
             const totalScore = predictions.reduce((sum, prediction) => sum + (prediction.score || 0), 0)
             
             players.push({ 
@@ -165,7 +165,6 @@ export const getLeaderboard = async (leagueId, userId) => {
                 ranking: i+1
             }
         })
-
         return { 
             success: true, 
             players: players,

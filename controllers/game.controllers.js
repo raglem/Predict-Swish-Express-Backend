@@ -1,18 +1,18 @@
 
 import { api, formatDate, formatGame} from "../config/balldontlie_api.js"
-import Team from "../models/team.module.js"
+
 import Game from "../models/game.module.js"
-import { updatePredictions } from "../helpers/prediction.helpers.js"
-import Player from "../models/player.module.js"
 import League from "../models/league.module.js"
+import Player from "../models/player.module.js"
+import Prediction from "../models/prediction.module.js"
+import Team from "../models/team.module.js"
+
+import { updatePredictions } from "../helpers/prediction.helpers.js"
 import { formatGameWithPredictions, formatGameWithPredictionStatus } from "../helpers/game.helpers.js"
 import { updateAllBots } from "../helpers/bots.helpers.js"
+
 export const getGames = async (req, res) => {
     const today = new Date()
-    const nextThreeDays = new Date(today);
-    nextThreeDays.setDate(today.getDate() + 3);
-    const lastThreeDays = new Date(today)
-    lastThreeDays.setDate(today.getDate() - 3)
     try{
         const player = await Player.findOne({ user: req.userId })
         const leagues = await League.find({ member_players: player._id })
@@ -22,35 +22,13 @@ export const getGames = async (req, res) => {
         let league_recent_games = []
         for(const league of leagues){
             if(league.mode == 'classic'){
-                league_upcoming_games = await Game.find({ 
-                    date: {
-                        $gte: today,
-                        $lt: nextThreeDays
-                    }
-                }).limit(10).select('_id')
-                league_recent_games = await Game.find({ 
-                    date: {
-                        $gte: lastThreeDays,
-                        $lt: today
-                    }
-                }).limit(10).select('_id')
+                league_upcoming_games = await Game.find({ date: { $gte: Date.now() } }).limit(5).sort({ date: 1}).select('_id')
+                league_recent_games = await Game.find({ date: { $lt: Date.now() }}).limit(5).sort({ date: 1 }).select('_id')
             }
             else{
                 const team = league.team
-                league_upcoming_games = await Game.find({ 
-                    team: team,
-                    date: {
-                        $gte: today,
-                        $lt: nextThreeDays
-                    }
-                }).limit(10).select('_id')
-                league_recent_games = await Game.find({ 
-                    team: team,
-                    date: {
-                        $gte: lastThreeDays,
-                        $lt: today
-                    }
-                }).limit(10).select('_id')
+                league_upcoming_games = await Game.find({ team: team, date: { $gte: Date.now() } }).sort({ date: 1}).limit(5).select('_id')
+                league_recent_games = await Game.find({ date: { $lt: Date.now() }}).sort({ date: -1 }).limit(5).select('_id')
             }
             league_upcoming_games = await Promise.all(league_upcoming_games.map(async game => {
                 const res = await formatGameWithPredictionStatus(game._id, league._id) //{ success, formatted }
@@ -81,7 +59,7 @@ export const getGames = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Server Error' })
     }
 }
-export const loadGames = async (req, res) => {
+export const loadGames = async ()=> {
     const today = new Date()
     const start = new Date(today.getFullYear(), today.getMonth(), today.getDate())
     const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 7)
@@ -99,15 +77,15 @@ export const loadGames = async (req, res) => {
                 }
             }
         }
-        updateAllBots()
-        return res.status(200).json({ success: true, message: `${numberAdded} games successfully added`})
+        await updateAllBots()
+        return { success: true, message: `${numberAdded} games successfully added`}
     }
     catch(err) {
         console.log(err)
-        return res.status(500).json({ success: false, message: 'Server Error'})
+        return { success: false, message: 'Server Error'}
     }
 }
-export const updateGames = async (req, res) => {
+export const updateGames = async () => {
     const today = new Date()
     /*
     retrieve Games from last week to today
@@ -132,14 +110,42 @@ export const updateGames = async (req, res) => {
                 }
             }
         }
-        return res.status(200).json({ success: true, message: `${numberUpdated} games updated`})
+        // Update games that are pending and occurred more than a week ago
+        let gameCounter = 0
+        const games = await Game.find({ status: { $ne: 'Final' }, date: { $lt: new Date() } })
+        for(const pendingGame of games){
+            // set interval for 5 sec between requests to avoid too many requests from api
+            if(gameCounter === 5){ 
+                gameCounter = 0
+                await new Promise(resolve => setTimeout(resolve, 5000)) 
+            } 
+            try{
+                const retrievedGame = await api.get(`/games/${pendingGame.balldontlie_id}`)
+                if(retrievedGame.data.status === 'Final'){
+                    pendingGame.status = 'Final'
+                    pendingGame.away_team_score = retrievedGame.data.visitor_team_score
+                    pendingGame.home_team_score = retrievedGame.data.home_team_score
+                    await pendingGame.save()
+                    await updatePredictions(pendingGame._id, pendingGame.away_team_score, pendingGame.home_team_score)
+                    numberUpdated++
+                    gameCounter++
+                }
+            }
+            catch(err){
+                if(err.response.status === 404 && err.response.statusText === "Not Found"){
+                    await Game.deleteOne({ _id: pendingGame._id });
+                    await Prediction.deleteMany({ game: pendingGame._id })
+                }
+            }
+        }
+        return { success: true, message: `${numberUpdated} games updated`}
     }
     catch(err) {
         console.log(err)
-        return res.status(500).json({ success: false, message: 'Server Error'})
+        return { success: false, message: 'Server Error'}
     }
 }
-async function retrieveGames(start, end){
+export const retrieveGames = async (start, end) =>{
     if(!(start instanceof Date && end instanceof Date)){
         return { success: false, message: 'Invalid start and end date fields' }
     }
@@ -166,6 +172,32 @@ async function retrieveGames(start, end){
         numberOfRequests += 1;
     }
     return [...new Map(games.map((game) => [game.id, game])).values()] //get rid of duplicates
+}
+export const verifyGames = async () => {
+    const today = new Date()
+    const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 7)
+
+    try{
+        const games = await Game.find({ date: { $gte: today, $lt: end}})
+
+        for(const game of games){
+            try{
+                const retrievedGame = await api.get(`/games/${game.balldontlie_id}`)
+            }
+            catch(err){
+                if(err.response.status === 404 && err.response.statusText === "Not Found"){
+                    await Game.deleteOne({ _id: game._id });
+                    await Prediction.deleteMany({ game: game._id })
+                }
+            }
+        }
+
+        return { success: true, message: "Games verified successfully" }
+    }
+    catch(err){
+        console.log(err)
+        return { success: false, message: 'Server Error'}
+    }
 }
 
 

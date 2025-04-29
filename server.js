@@ -17,7 +17,9 @@ import predictionRouter from './routes/prediction.route.js'
 import chatRouter from './routes/chat.route.js'
 
 import { handleChatSocket } from './controllers/chat.controllers.js'
-import { loadGames, updateGames } from './controllers/game.controllers.js'
+import { getGames, loadGames, updateGames, verifyGames } from './controllers/game.controllers.js';
+import { updateAllBots } from './helpers/bots.helpers.js';
+import { updateAllPredictions } from './helpers/prediction.helpers.js';
 
 dotenv.config()
 
@@ -60,7 +62,34 @@ server.listen(PORT, (err) => {
 })
 
 schedule.scheduleJob('0 0 * * *', async () => {
-    await loadGames();
-    await updateGames();
-});
+    try{
+        const loadGamesJob = await loadGames();
+        const updateGamesJob = await updateGames();
+        const updateBotsJob = await updateAllBots();
+        const verifyGamesJob = await verifyGames();
+        const updatePredictionsJob = await updateAllPredictions();
 
+        if(loadGamesJob.success){
+            console.log("Games loaded successfully")
+        }
+        if(updateGamesJob.success){
+            console.log("Games updated successfully")
+        }
+        if(updateBotsJob.success){
+            console.log("Bots updated successfully")
+        }
+        if(verifyGamesJob.success){
+            console.log("Games verified successfully")
+        }
+        if(updateAllPredictions.success){
+            console.log("Games verified successfully")
+        }
+        if(loadGames.success && updateGames.success && updateBots.success && verifyGames.success && updateAllPredictions.success){
+            console.log("Scheduled jobs completed successfully")
+        }
+    }
+    catch(err){
+        console.log("Job Failed")
+        console.log(err)
+    }
+});

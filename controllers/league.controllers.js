@@ -132,21 +132,7 @@ export const getLeagues = async (req, res) => {
             const recent_games = await recentGames(league._id, player._id)
             const leaderboard = await getLeaderboard(league._id, req.userId)
             const team = league.mode === 'team' ? await Team.findById(league.team) : null
-            /*
-                upcoming_games/recent_games = { succcess, games: [game1, game2, ...] }
-                game1, game2,... = {
-                    balldontlie_id,
-                    date,
-                    status,
-                    away_team,
-                    home_team
-                    away_team_score,
-                    home_team_score,
-                }
-                leaderboard = {[
-                    { playerId, username, mutualFriend, totalScore, ranking }...
-                ]}
-            */
+
             return {
                 id: league._id,
                 owner: {
@@ -162,7 +148,54 @@ export const getLeagues = async (req, res) => {
                 leaderboard: leaderboard.success ? leaderboard.players: [],
             }
         }))
-        const owned_leagues = leagues.filter(league => league.owner.id.toString() === player._id.toString())
+        let owned_leagues = leagues.filter(league => league.owner.id.toString() === player._id.toString())
+        owned_leagues = await Promise.all(owned_leagues.map(async owned_league => {
+            const league = await League.findById(owned_league.id)
+            const totals = await Promise.all(league.member_players.map(async playerId => {
+                const predictions = await Prediction.find({ player: playerId, leagues: league._id }).populate('score');
+                const player_total_score = predictions.reduce((sum, prediction) => sum + (prediction.score || 0), 0);
+                return {
+                    total_games_of_player: predictions.length,
+                    total_score_of_player: player_total_score,
+                    average_score_of_player: player_total_score / predictions.length || 0,
+                }
+            }))
+            const { total_games_played, total_score_of_all_games, total_of_average_player_score_per_game } = totals.reduce((sum, player) => {
+                sum.total_games_played += player.total_games_of_player;
+                sum.total_score_of_all_games += player.total_score_of_player;
+                sum.total_of_average_player_score_per_game += player.average_score_of_player;
+                return sum;
+            }, { total_games_played: 0, total_score_of_all_games: 0, total_of_average_player_score_per_game: 0 })
+            const average_game_score = parseFloat((total_of_average_player_score_per_game / league.member_players.length || 0).toFixed(2))
+
+            const invited_players = await Promise.all(league.invited_players.map(async playerId => {
+                const player = await Player.findById(playerId).select('user')
+                const user = await User.findById(player.user).select('username')
+                return {
+                    id: playerId,
+                    name: user.username,
+                }
+            }))
+            const requesting_players = await Promise.all(league.requesting_players.map(async playerId => {
+                const player = await Player.findById(playerId).select('user')
+                const user = await User.findById(player.user).select('username')
+                return {
+                    id: playerId,
+                    name: user.username,
+                }
+            }))
+            return {
+                ...owned_league,
+                invited_players,
+                requesting_players,
+                stats: {
+                    total_players: league.member_players.length,
+                    total_games_played,
+                    total_score_of_all_games,
+                    average_game_score,
+                }
+            }
+        }))
         return res.status(200).json({ success: true, message: 'Leagues retrieved successfully', leagues, owned_leagues })
     }
     catch(err){
