@@ -26,8 +26,13 @@ dotenv.config()
 const app = express();
 const PORT = process.env.PORT
 
+app.get("/", (req, res) => {
+    res.send("Welcome to the backend API of Predict & Swish")
+})
+
 const server = http.createServer(app);
 const io = new Server(server, {
+    // Allow all origins, only for testing purposes
     cors: {
         origin: '*',
     }
