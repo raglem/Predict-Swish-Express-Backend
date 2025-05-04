@@ -4,7 +4,7 @@ import Player from "../models/player.module.js"
 import Prediction from "../models/prediction.module.js"
 import User from "../models/user.module.js"
 
-import bcrypt from 'bcrypt'
+import bcrypt from 'bcryptjs'
 
 export const VALID_BOT_NAMES = [
     "bot1", "bot2", "bot3",
