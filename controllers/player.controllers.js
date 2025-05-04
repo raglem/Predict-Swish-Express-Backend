@@ -104,7 +104,6 @@ export const addFriend = async (req, res) => {
 
         // Add behavior to updateBot if necessary
         if(VALID_BOT_NAMES.includes(userFriend.username)){
-            console.log(`Updating ${userFriend.username}`)
             updateBot(userFriend.username)
         }
 

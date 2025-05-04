@@ -37,7 +37,6 @@ export const formatGame = async (game) => {
             away_team_score: game.visitor_team_score,
             home_team_score: game.home_team_score,
         }
-        console.log(formatted)
         return { success: true, formatted }
     }
     catch(err){

@@ -22,7 +22,6 @@ export const handleChatSocket = (socket, io) => {
     socket.on('send-message', async ({chatId, message}) => {
         saveMessage(socket, {chatId, message}).then((res) => {
             if(res.success){
-                console.log("emitting to: " + chatId.toString())
                 io.in(chatId.toString()).emit('receive-message', res.message)
             }
             else{

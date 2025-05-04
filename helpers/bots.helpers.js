@@ -56,6 +56,7 @@ export const updateAllBots = async () => {
         for(const botName of VALID_BOT_NAMES){
             updateBot(botName)
         }
+        return { success: true, message: 'Bots updated successfully' }
     }
     catch(err){
         console.log(err)
@@ -144,8 +145,6 @@ async function updateBotPredictions(bot){
             prediction.status = 'Submitted'
 
             await prediction.save()
-
-            console.log(prediction)
         }
     }
     catch(err){

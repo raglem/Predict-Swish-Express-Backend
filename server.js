@@ -84,7 +84,7 @@ schedule.scheduleJob('0 0 * * *', async () => {
         if(updateAllPredictions.success){
             console.log("Games verified successfully")
         }
-        if(loadGames.success && updateGames.success && updateBots.success && verifyGames.success && updateAllPredictions.success){
+        if(loadGamesJob.success && updateGamesJob.success && updateBotsJob.success && verifyGamesJob.success && updatePredictionsJob.success){
             console.log("Scheduled jobs completed successfully")
         }
     }
