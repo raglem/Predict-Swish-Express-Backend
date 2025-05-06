@@ -17,17 +17,19 @@ import predictionRouter from './routes/prediction.route.js'
 import chatRouter from './routes/chat.route.js'
 
 import { handleChatSocket } from './controllers/chat.controllers.js'
-import { getGames, loadGames, updateGames, verifyGames } from './controllers/game.controllers.js';
+import { loadGames, updateGames, verifyGames } from './controllers/game.controllers.js';
 import { updateAllBots } from './helpers/bots.helpers.js';
 import { updateAllPredictions } from './helpers/prediction.helpers.js';
+import Game from './models/game.module.js';
 
 dotenv.config()
 
 const app = express();
 const PORT = process.env.PORT
 
-app.get("/", (req, res) => {
-    res.send("Welcome to the backend API of Predict & Swish")
+app.get("/", async (req, res) => {
+    const games = await Game.find({ date: { $gte: Date.now() } }).limit(5).sort({ date: 1})
+    res.json({ "Welcome Message": "Welcome to the backend API of Predict & Swish!", games })
 })
 
 const server = http.createServer(app);
@@ -54,17 +56,21 @@ app.use('/teams', teamRouter)
 app.use('/predictions', predictionRouter)
 app.use('/chat', chatRouter)
 
-
-server.listen(PORT, (err) => {
-    if(!err){
-        console.log(`Server is running successfully. ` + 
-                    `App is running on http://localhost:${PORT}`)
-        connectDB()
+const startServer = async () => {
+    try{
+        await connectDB()
+        console.log("Connected to MongoDB successfully")
+        server.listen(PORT, () => {
+            console.log(`Server is running successfully. ` + 
+                        `App is running on http://localhost:${PORT}`)
+        })
     }
-    else{
+    catch(err){
         console.log(err)
     }
-})
+}
+
+startServer()
 
 schedule.scheduleJob('0 0 * * *', async () => {
     try{
